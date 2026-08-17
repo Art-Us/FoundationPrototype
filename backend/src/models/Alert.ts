@@ -49,3 +49,4 @@ export const Alert: Model<IAlert> =
   mongoose.models.Alert || mongoose.model<IAlert>('Alert', AlertSchema);
 
 export default Alert;
+
