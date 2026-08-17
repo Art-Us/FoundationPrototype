@@ -1,79 +1,119 @@
-import mongoose, { Document, Schema, Model, Types } from 'mongoose';
+import { Model, DataTypes, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
 export type UserRole = 'admin' | 'koordynator' | 'czlonek';
-
 export const USER_ROLES: UserRole[] = ['admin', 'koordynator', 'czlonek'];
 
-export interface IUser extends Document {
+export interface UserAttributes {
+  id: string;
   firstName: string;
   lastName: string;
   email: string;
-  password: string;
+  password?: string;
   phone: string;
   role: UserRole;
-  organization: Types.ObjectId;
+  organizationId: string;
   isVerified: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const UserSchema = new Schema<IUser>(
+export interface UserCreationAttributes
+  extends Optional<UserAttributes, 'id' | 'role' | 'isVerified' | 'createdAt' | 'updatedAt'> {}
+
+export class User
+  extends Model<UserAttributes, UserCreationAttributes>
+  implements UserAttributes
+{
+  public id!: string;
+  public firstName!: string;
+  public lastName!: string;
+  public email!: string;
+  public password!: string;
+  public phone!: string;
+  public role!: UserRole;
+  public organizationId!: string;
+  public isVerified!: boolean;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+User.init(
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     firstName: {
-      type: String,
-      required: [true, 'Imię jest wymagane'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Imię jest wymagane' },
+      },
     },
     lastName: {
-      type: String,
-      required: [true, 'Nazwisko jest wymagane'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Nazwisko jest wymagane' },
+      },
     },
     email: {
-      type: String,
-      required: [true, 'Adres email jest wymagany'],
+      type: DataTypes.STRING,
+      allowNull: false,
       unique: true,
-      trim: true,
-      lowercase: true,
-      match: [/^\S+@\S+\.\S+$/, 'Podaj poprawny adres email'],
+      validate: {
+        isEmail: { msg: 'Podaj poprawny adres email' },
+      },
     },
     password: {
-      type: String,
-      required: [true, 'Hasło jest wymagane'],
-      minlength: [6, 'Hasło musi mieć minimum 6 znaków'],
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        len: {
+          args: [6, 255],
+          msg: 'Hasło musi mieć minimum 6 znaków',
+        },
+      },
     },
     phone: {
-      type: String,
-      required: [true, 'Numer telefonu jest wymagany'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Numer telefonu jest wymagany' },
+      },
     },
     role: {
-      type: String,
-      enum: {
-        values: USER_ROLES,
-        message: 'Nieprawidłowa rola: {VALUE}',
+      type: DataTypes.ENUM('admin', 'koordynator', 'czlonek'),
+      defaultValue: 'czlonek',
+      allowNull: false,
+      validate: {
+        isIn: {
+          args: [USER_ROLES],
+          msg: 'Nieprawidłowa rola użytkownika',
+        },
       },
-      default: 'czlonek',
-      required: [true, 'Rola jest wymagana'],
     },
-    organization: {
-      type: Schema.Types.ObjectId,
-      ref: 'Organization',
-      required: [true, 'Przypisanie do organizacji jest wymagane'],
-      index: true,
+    organizationId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'organizations',
+        key: 'id',
+      },
     },
     isVerified: {
-      type: Boolean,
-      default: false,
-      index: true,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
     },
   },
   {
+    sequelize,
+    tableName: 'users',
     timestamps: true,
   }
 );
-
-export const User: Model<IUser> =
-  mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
 
 export default User;

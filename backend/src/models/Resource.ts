@@ -1,4 +1,5 @@
-import mongoose, { Document, Schema, Model, Types } from 'mongoose';
+import { Model, DataTypes, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
 export type ResourceType = 'ludzie' | 'woda' | 'sprzet' | 'inne';
 export type ResourceTimeframe = '24h' | '48h' | '72h' | 'tydzien';
@@ -6,57 +7,91 @@ export type ResourceTimeframe = '24h' | '48h' | '72h' | 'tydzien';
 export const RESOURCE_TYPES: ResourceType[] = ['ludzie', 'woda', 'sprzet', 'inne'];
 export const RESOURCE_TIMEFRAMES: ResourceTimeframe[] = ['24h', '48h', '72h', 'tydzien'];
 
-export interface IResource extends Document {
-  organization: Types.ObjectId;
+export interface ResourceAttributes {
+  id: string;
+  organizationId: string;
   type: ResourceType;
   quantity: number;
   timeframe: ResourceTimeframe;
   isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const ResourceSchema = new Schema<IResource>(
+export interface ResourceCreationAttributes
+  extends Optional<ResourceAttributes, 'id' | 'isActive' | 'createdAt' | 'updatedAt'> {}
+
+export class Resource
+  extends Model<ResourceAttributes, ResourceCreationAttributes>
+  implements ResourceAttributes
+{
+  public id!: string;
+  public organizationId!: string;
+  public type!: ResourceType;
+  public quantity!: number;
+  public timeframe!: ResourceTimeframe;
+  public isActive!: boolean;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+Resource.init(
   {
-    organization: {
-      type: Schema.Types.ObjectId,
-      ref: 'Organization',
-      required: [true, 'Przypisanie do organizacji jest wymagane'],
-      index: true,
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    organizationId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'organizations',
+        key: 'id',
+      },
     },
     type: {
-      type: String,
-      enum: {
-        values: RESOURCE_TYPES,
-        message: 'Nieprawidłowy typ zasobu: {VALUE}',
+      type: DataTypes.ENUM('ludzie', 'woda', 'sprzet', 'inne'),
+      allowNull: false,
+      validate: {
+        isIn: {
+          args: [RESOURCE_TYPES],
+          msg: 'Nieprawidłowy typ zasobu',
+        },
       },
-      required: [true, 'Typ zasobu jest wymagany'],
     },
     quantity: {
-      type: Number,
-      required: [true, 'Ilość zasobu jest wymagana'],
-      min: [0, 'Ilość nie może być ujemna'],
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      validate: {
+        min: {
+          args: [0],
+          msg: 'Ilość nie może być ujemna',
+        },
+      },
     },
     timeframe: {
-      type: String,
-      enum: {
-        values: RESOURCE_TIMEFRAMES,
-        message: 'Nieprawidłowy horyzont czasowy: {VALUE}',
+      type: DataTypes.ENUM('24h', '48h', '72h', 'tydzien'),
+      allowNull: false,
+      validate: {
+        isIn: {
+          args: [RESOURCE_TIMEFRAMES],
+          msg: 'Nieprawidłowy horyzont czasowy',
+        },
       },
-      required: [true, 'Horyzont czasowy jest wymagany'],
     },
     isActive: {
-      type: Boolean,
-      default: true,
-      index: true,
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      allowNull: false,
     },
   },
   {
+    sequelize,
+    tableName: 'resources',
     timestamps: true,
   }
 );
-
-export const Resource: Model<IResource> =
-  mongoose.models.Resource || mongoose.model<IResource>('Resource', ResourceSchema);
 
 export default Resource;

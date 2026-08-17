@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { User } from '../models/User';
+import { User, Organization } from '../models';
 import { AuthenticatedRequest } from '../middleware/protect';
 
 /**
@@ -12,10 +12,17 @@ export const getPendingUsers = async (
   res: Response
 ): Promise<void> => {
   try {
-    const pendingUsers = await User.find({ isVerified: false })
-      .select('-password')
-      .populate('organization')
-      .sort({ createdAt: -1 });
+    const pendingUsers = await User.findAll({
+      where: { isVerified: false },
+      attributes: { exclude: ['password'] },
+      include: [
+        {
+          model: Organization,
+          as: 'organization',
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
 
     res.status(200).json({
       success: true,
@@ -43,7 +50,7 @@ export const verifyUser = async (
   try {
     const { id } = req.params;
 
-    const user = await User.findById(id);
+    const user = await User.findByPk(id);
     if (!user) {
       res.status(404).json({
         success: false,
@@ -55,9 +62,15 @@ export const verifyUser = async (
     user.isVerified = true;
     await user.save();
 
-    const updatedUser = await User.findById(user._id)
-      .select('-password')
-      .populate('organization');
+    const updatedUser = await User.findByPk(user.id, {
+      attributes: { exclude: ['password'] },
+      include: [
+        {
+          model: Organization,
+          as: 'organization',
+        },
+      ],
+    });
 
     res.status(200).json({
       success: true,

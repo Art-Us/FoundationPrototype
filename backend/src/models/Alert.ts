@@ -1,52 +1,82 @@
-import mongoose, { Document, Schema, Model, Types } from 'mongoose';
+import { Model, DataTypes, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
-export interface IAlert extends Document {
+export interface AlertAttributes {
+  id: string;
   content: string;
   category: string;
   isActive: boolean;
-  author: Types.ObjectId;
-  municipality: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
+  authorId: string;
+  municipalityId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const AlertSchema = new Schema<IAlert>(
+export interface AlertCreationAttributes
+  extends Optional<AlertAttributes, 'id' | 'isActive' | 'createdAt' | 'updatedAt'> {}
+
+export class Alert
+  extends Model<AlertAttributes, AlertCreationAttributes>
+  implements AlertAttributes
+{
+  public id!: string;
+  public content!: string;
+  public category!: string;
+  public isActive!: boolean;
+  public authorId!: string;
+  public municipalityId!: string;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+Alert.init(
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     content: {
-      type: String,
-      required: [true, 'Treść komunikatu jest wymagana'],
-      trim: true,
+      type: DataTypes.TEXT,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Treść komunikatu jest wymagana' },
+      },
     },
     category: {
-      type: String,
-      required: [true, 'Kategoria komunikatu jest wymagana'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Kategoria komunikatu jest wymagana' },
+      },
     },
     isActive: {
-      type: Boolean,
-      default: true,
-      index: true,
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      allowNull: false,
     },
-    author: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Autor komunikatu jest wymagany'],
-      index: true,
+    authorId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id',
+      },
     },
-    municipality: {
-      type: Schema.Types.ObjectId,
-      ref: 'Municipality',
-      required: [true, 'Przypisanie do gminy jest wymagane'],
-      index: true,
+    municipalityId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'municipalities',
+        key: 'id',
+      },
     },
   },
   {
+    sequelize,
+    tableName: 'alerts',
     timestamps: true,
   }
 );
 
-export const Alert: Model<IAlert> =
-  mongoose.models.Alert || mongoose.model<IAlert>('Alert', AlertSchema);
-
 export default Alert;
-

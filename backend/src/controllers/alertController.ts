@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
-import { Alert } from '../models/Alert';
-import { Organization } from '../models/Organization';
+import { Alert, User, Organization, Municipality } from '../models';
 import { AuthenticatedRequest } from '../middleware/protect';
 
 /**
@@ -10,17 +9,29 @@ import { AuthenticatedRequest } from '../middleware/protect';
  */
 export const getPublicAlerts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const alerts = await Alert.find({ isActive: true })
-      .populate({
-        path: 'author',
-        select: 'firstName lastName email role organization',
-        populate: {
-          path: 'organization',
-          select: 'name type',
+    const alerts = await Alert.findAll({
+      where: { isActive: true },
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+          include: [
+            {
+              model: Organization,
+              as: 'organization',
+              attributes: ['id', 'name', 'type'],
+            },
+          ],
         },
-      })
-      .populate('municipality', 'name')
-      .sort({ createdAt: -1 });
+        {
+          model: Municipality,
+          as: 'municipality',
+          attributes: ['id', 'name'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
 
     res.status(200).json({
       success: true,
@@ -48,17 +59,29 @@ export const getAlertsByMunicipality = async (
   try {
     const { id: municipalityId } = req.params;
 
-    const alerts = await Alert.find({ municipality: municipalityId })
-      .populate({
-        path: 'author',
-        select: 'firstName lastName email role organization',
-        populate: {
-          path: 'organization',
-          select: 'name type',
+    const alerts = await Alert.findAll({
+      where: { municipalityId },
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+          include: [
+            {
+              model: Organization,
+              as: 'organization',
+              attributes: ['id', 'name', 'type'],
+            },
+          ],
         },
-      })
-      .populate('municipality', 'name')
-      .sort({ createdAt: -1 });
+        {
+          model: Municipality,
+          as: 'municipality',
+          attributes: ['id', 'name'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
 
     res.status(200).json({
       success: true,
@@ -84,7 +107,7 @@ export const createAlert = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { content, category, municipality } = req.body;
+    const { content, category, municipality, municipalityId } = req.body;
 
     if (!content || !category) {
       res.status(400).json({
@@ -94,20 +117,20 @@ export const createAlert = async (
       return;
     }
 
-    let targetMunicipality = municipality;
+    let targetMunicipalityId = municipalityId || municipality;
 
-    // Jeśli gmina nie została przekazana w ciele żądania, pobierz ją z organizacji użytkownika
-    if (!targetMunicipality && req.user?.organization) {
-      const userOrg = await Organization.findById(req.user.organization);
+    // Jeśli gmina nie została podana, pobierz ją z organizacji użytkownika
+    if (!targetMunicipalityId && req.user?.organizationId) {
+      const userOrg = await Organization.findByPk(req.user.organizationId);
       if (userOrg) {
-        targetMunicipality = userOrg.municipality;
+        targetMunicipalityId = userOrg.municipalityId;
       }
     }
 
-    if (!targetMunicipality) {
+    if (!targetMunicipalityId) {
       res.status(400).json({
         success: false,
-        message: 'Przypisanie do gminy (municipality) jest wymagane.',
+        message: 'Przypisanie do gminy (municipalityId) jest wymagane.',
       });
       return;
     }
@@ -115,21 +138,32 @@ export const createAlert = async (
     const alert = await Alert.create({
       content,
       category,
-      municipality: targetMunicipality,
-      author: req.user!._id,
+      municipalityId: targetMunicipalityId,
+      authorId: req.user!.id,
       isActive: true,
     });
 
-    const populatedAlert = await Alert.findById(alert._id)
-      .populate({
-        path: 'author',
-        select: 'firstName lastName email role organization',
-        populate: {
-          path: 'organization',
-          select: 'name type',
+    const populatedAlert = await Alert.findByPk(alert.id, {
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+          include: [
+            {
+              model: Organization,
+              as: 'organization',
+              attributes: ['id', 'name', 'type'],
+            },
+          ],
         },
-      })
-      .populate('municipality', 'name');
+        {
+          model: Municipality,
+          as: 'municipality',
+          attributes: ['id', 'name'],
+        },
+      ],
+    });
 
     res.status(201).json({
       success: true,
@@ -146,7 +180,7 @@ export const createAlert = async (
 };
 
 /**
- * @desc    Dezaktywuje alert (isActive = false) po weryfikacji przynależności do gminy/organizacji
+ * @desc    Dezaktywuje alert (isActive = false) po weryfikacji uprawnień (gmina/organizacja)
  * @route   PATCH /api/alerts/:id/deactivate
  * @access  Private (wymaga protect)
  */
@@ -157,7 +191,7 @@ export const deactivateAlert = async (
   try {
     const { id } = req.params;
 
-    const alert = await Alert.findById(id);
+    const alert = await Alert.findByPk(id);
     if (!alert) {
       res.status(404).json({
         success: false,
@@ -167,23 +201,21 @@ export const deactivateAlert = async (
     }
 
     const user = req.user!;
-    const isAuthor = alert.author.toString() === user._id.toString();
+    const isAuthor = alert.authorId === user.id;
     const isAdmin = user.role === 'admin';
 
-    // Pobranie organizacji użytkownika w celu sprawdzenia gminy i organizacji
+    // Pobranie gminy użytkownika na podstawie jego organizacji
     let userMunicipalityId: string | null = null;
-    let userOrgId: string | null = user.organization ? user.organization.toString() : null;
-
-    if (user.organization) {
-      const userOrg = await Organization.findById(user.organization);
+    if (user.organizationId) {
+      const userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
-        userMunicipalityId = userOrg.municipality.toString();
+        userMunicipalityId = userOrg.municipalityId;
       }
     }
 
-    const isSameMunicipality = userMunicipalityId && userMunicipalityId === alert.municipality.toString();
+    const isSameMunicipality = userMunicipalityId && userMunicipalityId === alert.municipalityId;
 
-    // Dostęp ma admin, autor lub użytkownik ze zgodnej gminy
+    // Dostęp ma admin, autor lub członek ze zgodnej gminy
     if (!isAdmin && !isAuthor && !isSameMunicipality) {
       res.status(403).json({
         success: false,
@@ -195,16 +227,27 @@ export const deactivateAlert = async (
     alert.isActive = false;
     await alert.save();
 
-    const updatedAlert = await Alert.findById(alert._id)
-      .populate({
-        path: 'author',
-        select: 'firstName lastName email role organization',
-        populate: {
-          path: 'organization',
-          select: 'name type',
+    const updatedAlert = await Alert.findByPk(alert.id, {
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+          include: [
+            {
+              model: Organization,
+              as: 'organization',
+              attributes: ['id', 'name', 'type'],
+            },
+          ],
         },
-      })
-      .populate('municipality', 'name');
+        {
+          model: Municipality,
+          as: 'municipality',
+          attributes: ['id', 'name'],
+        },
+      ],
+    });
 
     res.status(200).json({
       success: true,
