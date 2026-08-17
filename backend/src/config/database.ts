@@ -4,7 +4,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const dbPath = process.env.DB_STORAGE || path.resolve(__dirname, '../../database.sqlite');
+const dbPath =
+  process.env.NODE_ENV === 'test'
+    ? ':memory:'
+    : process.env.DB_STORAGE || path.resolve(__dirname, '../../database.sqlite');
 
 export const sequelize = new Sequelize({
   dialect: 'sqlite',

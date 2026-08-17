@@ -60,11 +60,10 @@ Resource.belongsTo(Organization, {
   as: 'organization',
 });
 
-export {
-  sequelize,
-  Municipality,
-  Organization,
-  User,
-  Alert,
-  Resource,
-};
+export * from './Municipality';
+export * from './Organization';
+export * from './User';
+export * from './Alert';
+export * from './Resource';
+export { sequelize };
+
