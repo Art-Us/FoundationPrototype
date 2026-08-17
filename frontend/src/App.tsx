@@ -61,6 +61,14 @@ export const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/dashboard/admin"
+                element={
+                  <ProtectedRoute requireAdmin={true}>
+                    <AdminDashboardPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Domyślne przekierowanie */}
               <Route path="*" element={<Navigate to="/" replace />} />

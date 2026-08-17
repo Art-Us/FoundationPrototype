@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getPendingUsers, verifyUser } from '../controllers/adminController';
+import { getPendingUsers, verifyUser, rejectUser } from '../controllers/adminController';
 import { protect } from '../middleware/protect';
 import { adminOnly } from '../middleware/adminOnly';
 
@@ -13,5 +13,9 @@ router.get('/users/pending', getPendingUsers);
 
 // PATCH /api/admin/users/:id/verify - Zmienia isVerified na true
 router.patch('/users/:id/verify', verifyUser);
+
+// DELETE /api/admin/users/:id/reject oraz DELETE /api/admin/users/:id - Odrzuca wniosek i usuwa konto
+router.delete('/users/:id/reject', rejectUser);
+router.delete('/users/:id', rejectUser);
 
 export default router;
