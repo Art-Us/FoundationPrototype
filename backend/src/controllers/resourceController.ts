@@ -70,6 +70,82 @@ export const getResourcesByMunicipality = async (
 };
 
 /**
+ * @desc    Pobiera zasoby dla gminy zalogowanego użytkownika (lub wybranej) zgrupowane dla matrycy
+ * @route   GET /api/resources/my-municipality
+ * @access  Private (wymaga protect)
+ */
+export const getMyMunicipalityResources = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    let municipalityId = req.query.municipalityId as string;
+
+    if (!municipalityId && req.user?.organizationId) {
+      const userOrg = await Organization.findByPk(req.user.organizationId);
+      if (userOrg) {
+        municipalityId = userOrg.municipalityId;
+      }
+    }
+
+    let organizationIds: string[] = [];
+
+    if (municipalityId) {
+      const organizations = await Organization.findAll({
+        where: { municipalityId },
+        attributes: ['id'],
+      });
+      organizationIds = organizations.map((org) => org.id);
+    }
+
+    const whereClause: any = { isActive: true };
+    if (organizationIds.length > 0) {
+      whereClause.organizationId = organizationIds;
+    }
+
+    const resources = await Resource.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Organization,
+          as: 'organization',
+          attributes: ['id', 'name', 'type', 'municipalityId'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const matrix: Record<string, Record<string, number>> = {};
+    for (const type of RESOURCE_TYPES) {
+      matrix[type] = {};
+      for (const timeframe of RESOURCE_TIMEFRAMES) {
+        matrix[type][timeframe] = 0;
+      }
+    }
+
+    for (const resource of resources) {
+      if (matrix[resource.type] && matrix[resource.type][resource.timeframe] !== undefined) {
+        matrix[resource.type][resource.timeframe] += resource.quantity;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      municipalityId,
+      matrix,
+      count: resources.length,
+      resources,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas pobierania zasobów dla Twojej gminy.',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * @desc    Dodaje nowy zasób
  * @route   POST /api/resources
  * @access  Private (wymaga protect)

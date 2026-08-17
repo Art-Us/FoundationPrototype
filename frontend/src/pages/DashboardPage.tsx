@@ -42,15 +42,21 @@ export const DashboardPage: React.FC = () => {
           </p>
         </Link>
 
-        <div className="rounded-2xl bg-slate-800/80 p-6 border border-slate-700/60 shadow-xl">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 mb-4">
+        <Link
+          to="/dashboard/resources"
+          className="group rounded-2xl bg-slate-800/80 p-6 border border-slate-700/60 hover:border-teal-500/50 hover:bg-slate-800 transition shadow-xl"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 mb-4 group-hover:scale-110 transition">
             <Database className="h-6 w-6" />
           </div>
-          <h3 className="text-lg font-bold text-white">Matryca Zasobów</h3>
+          <h3 className="text-lg font-bold text-white group-hover:text-teal-400 transition flex items-center justify-between">
+            <span>Matryca Zasobów</span>
+            <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition" />
+          </h3>
           <p className="text-xs text-slate-400 mt-2">
-            Monitoruj dostępność personelu, wody, sprzętu i materiałów w horyzontach czasowych.
+            Monitoruj dostępność personelu, wody, sprzętu i materiałów w horyzontach czasowych (24h, 48h, 72h, Tydzień).
           </p>
-        </div>
+        </Link>
 
         {user?.role === 'admin' ? (
           <Link

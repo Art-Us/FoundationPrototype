@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Shield, User as UserIcon, LogOut, Bell, LayoutDashboard, ShieldAlert } from 'lucide-react';
+import { Shield, User as UserIcon, LogOut, Bell, LayoutDashboard, ShieldAlert, Database } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -54,7 +54,14 @@ export const Navbar: React.FC = () => {
                 className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-lg transition"
               >
                 <Bell className="h-4 w-4 text-red-400" />
-                <span className="hidden sm:inline">Moje Alerty</span>
+                <span className="hidden sm:inline">Alerty</span>
+              </Link>
+              <Link
+                to="/dashboard/resources"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-lg transition"
+              >
+                <Database className="h-4 w-4 text-cyan-400" />
+                <span className="hidden sm:inline">Zasoby</span>
               </Link>
             </>
           )}

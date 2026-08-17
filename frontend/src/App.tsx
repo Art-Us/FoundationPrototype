@@ -9,6 +9,7 @@ import { PendingVerificationPage } from './pages/PendingVerificationPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DashboardAlertsPage } from './pages/DashboardAlertsPage';
+import { DashboardResourcesPage } from './pages/DashboardResourcesPage';
 import { PublicAlertsPage } from './pages/PublicAlertsPage';
 
 export const App: React.FC = () => {
@@ -39,6 +40,14 @@ export const App: React.FC = () => {
                 element={
                   <ProtectedRoute>
                     <DashboardAlertsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/resources"
+                element={
+                  <ProtectedRoute>
+                    <DashboardResourcesPage />
                   </ProtectedRoute>
                 }
               />
