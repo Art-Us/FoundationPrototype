@@ -20,12 +20,12 @@ export class Organization
   extends Model<OrganizationAttributes, OrganizationCreationAttributes>
   implements OrganizationAttributes
 {
-  public id!: string;
-  public name!: string;
-  public type!: OrganizationType;
-  public municipalityId!: string;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare name: string;
+  declare type: OrganizationType;
+  declare municipalityId: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 Organization.init(

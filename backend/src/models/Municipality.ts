@@ -15,10 +15,10 @@ export class Municipality
   extends Model<MunicipalityAttributes, MunicipalityCreationAttributes>
   implements MunicipalityAttributes
 {
-  public id!: string;
-  public name!: string;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare name: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 Municipality.init(

@@ -25,14 +25,14 @@ export class Resource
   extends Model<ResourceAttributes, ResourceCreationAttributes>
   implements ResourceAttributes
 {
-  public id!: string;
-  public organizationId!: string;
-  public type!: ResourceType;
-  public quantity!: number;
-  public timeframe!: ResourceTimeframe;
-  public isActive!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare organizationId: string;
+  declare type: ResourceType;
+  declare quantity: number;
+  declare timeframe: ResourceTimeframe;
+  declare isActive: boolean;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 Resource.init(

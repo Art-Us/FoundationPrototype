@@ -25,17 +25,17 @@ export class User
   extends Model<UserAttributes, UserCreationAttributes>
   implements UserAttributes
 {
-  public id!: string;
-  public firstName!: string;
-  public lastName!: string;
-  public email!: string;
-  public password!: string;
-  public phone!: string;
-  public role!: UserRole;
-  public organizationId!: string;
-  public isVerified!: boolean;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare firstName: string;
+  declare lastName: string;
+  declare email: string;
+  declare password: string;
+  declare phone: string;
+  declare role: UserRole;
+  declare organizationId: string;
+  declare isVerified: boolean;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 User.init(

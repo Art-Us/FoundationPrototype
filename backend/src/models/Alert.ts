@@ -19,14 +19,14 @@ export class Alert
   extends Model<AlertAttributes, AlertCreationAttributes>
   implements AlertAttributes
 {
-  public id!: string;
-  public content!: string;
-  public category!: string;
-  public isActive!: boolean;
-  public authorId!: string;
-  public municipalityId!: string;
-  public readonly createdAt!: Date;
-  public readonly updatedAt!: Date;
+  declare id: string;
+  declare content: string;
+  declare category: string;
+  declare isActive: boolean;
+  declare authorId: string;
+  declare municipalityId: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
 }
 
 Alert.init(
