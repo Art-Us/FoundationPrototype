@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { User } from '../models';
+import { User, Organization, Municipality } from '../models';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default_jwt_secret_key_change_in_production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -100,6 +100,18 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Sprawdzenie, czy użytkownik istnieje
     const user = await User.findOne({
       where: { email: email.toLowerCase().trim() },
+      include: [
+        {
+          model: Organization,
+          as: 'organization',
+          include: [
+            {
+              model: Municipality,
+              as: 'municipality',
+            },
+          ],
+        },
+      ],
     });
 
     if (!user) {
@@ -143,6 +155,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         phone: user.phone,
         role: user.role,
         organizationId: user.organizationId,
+        organization: (user as any).organization,
         isVerified: user.isVerified,
       },
     });

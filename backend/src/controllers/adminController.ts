@@ -85,3 +85,39 @@ export const verifyUser = async (
     });
   }
 };
+
+/**
+ * @desc    Odrzuca weryfikację użytkownika (usuwa konto oczekujące)
+ * @route   DELETE /api/admin/users/:id/reject
+ * @access  Private (wymaga protect i adminOnly)
+ */
+export const rejectUser = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findByPk(id);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'Użytkownik o podanym identyfikatorze nie został znaleziony.',
+      });
+      return;
+    }
+
+    await user.destroy();
+
+    res.status(200).json({
+      success: true,
+      message: 'Wniosek o rejestrację został odrzucony, a konto usunięte.',
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas odrzucania użytkownika.',
+      error: error.message,
+    });
+  }
+};

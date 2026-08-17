@@ -4,10 +4,15 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Bezwzględna ścieżka do pliku database.sqlite w katalogu backend
+const defaultStorage = path.resolve(__dirname, '../../database.sqlite');
+
 const dbPath =
   process.env.NODE_ENV === 'test'
     ? ':memory:'
-    : process.env.DB_STORAGE || path.resolve(__dirname, '../../database.sqlite');
+    : (process.env.DB_STORAGE && !process.env.DB_STORAGE.startsWith('./')
+        ? path.resolve(process.env.DB_STORAGE)
+        : defaultStorage);
 
 export const sequelize = new Sequelize({
   dialect: 'sqlite',

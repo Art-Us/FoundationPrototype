@@ -137,12 +137,31 @@ export const seedDatabase = async () => {
     console.log('✅ Utworzono użytkowników (admin, koordynatorzy, członkowie, niezweryfikowani).');
 
     // 5. Tworzenie Alertów (Alerts)
+    const now = Date.now();
+    const oneHour = 3600 * 1000;
+    const oneDay = 24 * oneHour;
+
     await Alert.create({
       content: 'Gwałtowny przybór wody na rzece Nysa Kłodzka. Wprowadzono stan pogotowia przeciwpowodziowego dla Gminy Kłodzko.',
       category: 'Ostrzeżenie hydrologiczne',
       isActive: true,
       authorId: koordKlodzko.id,
       municipalityId: klodzko.id,
+      locationName: 'Kłodzko',
+      county: 'powiat kłodzki',
+      voivodeship: 'dolnośląskie',
+      lat: 50.4380,
+      lng: 16.6548,
+      history: [
+        {
+          id: 'seed-evt-1',
+          action: 'created',
+          timestamp: new Date(now - 14 * oneHour).toISOString(),
+          userName: 'Marek Koordynator-Kłodzko',
+          organizationName: 'Urząd Miasta Kłodzko',
+          details: 'Utworzenie i natychmiastowa publikacja alertu',
+        },
+      ],
     });
 
     await Alert.create({
@@ -151,6 +170,21 @@ export const seedDatabase = async () => {
       isActive: true,
       authorId: admin.id,
       municipalityId: klodzko.id,
+      locationName: 'Kłodzko',
+      county: 'powiat kłodzki',
+      voivodeship: 'dolnośląskie',
+      lat: 50.4420,
+      lng: 16.6620,
+      history: [
+        {
+          id: 'seed-evt-2',
+          action: 'created',
+          timestamp: new Date(now - 8 * oneHour).toISOString(),
+          userName: 'Administrator Główny',
+          organizationName: 'Fundacja Ratownictwa i Pomocy Q',
+          details: 'Utworzenie punktu pomocy',
+        },
+      ],
     });
 
     await Alert.create({
@@ -159,6 +193,37 @@ export const seedDatabase = async () => {
       isActive: true,
       authorId: koordKlodzko.id,
       municipalityId: ladek.id,
+      locationName: 'Lądek-Zdrój',
+      county: 'powiat kłodzki',
+      voivodeship: 'dolnośląskie',
+      lat: 50.3478,
+      lng: 16.8778,
+      history: [
+        {
+          id: 'seed-evt-3a',
+          action: 'created',
+          timestamp: new Date(now - 28 * oneHour).toISOString(),
+          userName: 'Marek Koordynator-Kłodzko',
+          organizationName: 'Urząd Miasta Kłodzko',
+          details: 'Zamknięcie przeprawy',
+        },
+        {
+          id: 'seed-evt-3b',
+          action: 'deactivated',
+          timestamp: new Date(now - 16 * oneHour).toISOString(),
+          userName: 'Marek Koordynator-Kłodzko',
+          organizationName: 'Urząd Miasta Kłodzko',
+          details: 'Tymczasowe otwarcie jednego pasa',
+        },
+        {
+          id: 'seed-evt-3c',
+          action: 'reactivated',
+          timestamp: new Date(now - 4 * oneHour).toISOString(),
+          userName: 'Marek Koordynator-Kłodzko',
+          organizationName: 'Urząd Miasta Kłodzko',
+          details: 'Ponowne zamknięcie ze względu na osiadanie filaru',
+        },
+      ],
     });
 
     await Alert.create({
@@ -167,6 +232,29 @@ export const seedDatabase = async () => {
       isActive: false, // nieaktywny
       authorId: koordNysa.id,
       municipalityId: nysa.id,
+      locationName: 'Nysa',
+      county: 'powiat nyski',
+      voivodeship: 'opolskie',
+      lat: 50.4738,
+      lng: 17.3344,
+      history: [
+        {
+          id: 'seed-evt-4a',
+          action: 'created',
+          timestamp: new Date(now - 42 * oneHour).toISOString(),
+          userName: 'Tomasz Koordynator-Nysa',
+          organizationName: 'Państwowa Straż Pożarna w Nysie',
+          details: 'Rozpoczęcie akcji umacniania wałów',
+        },
+        {
+          id: 'seed-evt-4b',
+          action: 'deactivated',
+          timestamp: new Date(now - 6 * oneHour).toISOString(),
+          userName: 'Tomasz Koordynator-Nysa',
+          organizationName: 'Państwowa Straż Pożarna w Nysie',
+          details: 'Akcja ratownicza zakończona pomyślnie',
+        },
+      ],
     });
 
     console.log('✅ Utworzono przykładowe komunikaty i alerty.');
@@ -176,7 +264,8 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: umKlodzko.id,
       type: 'woda',
-      quantity: 5000, // 5000 litrów
+      subcategory: 'Woda butelkowana (zgrzewki 5L)',
+      quantity: 5000,
       timeframe: '24h',
       isActive: true,
     });
@@ -184,7 +273,17 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: umKlodzko.id,
       type: 'ludzie',
-      quantity: 20, // 20 pracowników
+      subcategory: 'Psycholodzy i wsparcie kryzysowe',
+      quantity: 8,
+      timeframe: '24h',
+      isActive: true,
+    });
+
+    await Resource.create({
+      organizationId: umKlodzko.id,
+      type: 'ludzie',
+      subcategory: 'Pracownicy administracyjno-terenowi',
+      quantity: 12,
       timeframe: '48h',
       isActive: true,
     });
@@ -192,15 +291,26 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: ospKlodzko.id,
       type: 'sprzet',
-      quantity: 8, // 8 motopomp wysokowydajnych
+      subcategory: 'Motopompy szlamowe wysokowydajne',
+      quantity: 6,
       timeframe: '24h',
       isActive: true,
     });
 
     await Resource.create({
       organizationId: ospKlodzko.id,
+      type: 'sprzet',
+      subcategory: 'Agregaty prądotwórcze dużej mocy',
+      quantity: 4,
+      timeframe: '48h',
+      isActive: true,
+    });
+
+    await Resource.create({
+      organizationId: ospKlodzko.id,
       type: 'ludzie',
-      quantity: 16, // 16 ratowników OSP
+      subcategory: 'Strażacy OSP / Ratownicy techniczni',
+      quantity: 16,
       timeframe: '24h',
       isActive: true,
     });
@@ -208,7 +318,8 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: ospKlodzko.id,
       type: 'inne',
-      quantity: 1200, // 1200 worków z piaskiem
+      subcategory: 'Worki z piaskiem i rękawy przeciwpowodziowe',
+      quantity: 1200,
       timeframe: '72h',
       isActive: true,
     });
@@ -216,14 +327,25 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: fundacjaQ.id,
       type: 'ludzie',
-      quantity: 40, // 40 wolontariuszy
+      subcategory: 'Wolontariusze do segregacji i dystrybucji',
+      quantity: 35,
       timeframe: '48h',
       isActive: true,
     });
 
     await Resource.create({
       organizationId: fundacjaQ.id,
+      type: 'ludzie',
+      subcategory: 'Psycholodzy dziecięcy i terapeuci traumy',
+      quantity: 5,
+      timeframe: '72h',
+      isActive: true,
+    });
+
+    await Resource.create({
+      organizationId: fundacjaQ.id,
       type: 'woda',
+      subcategory: 'Cysterny mobilne i zbiorniki DPX',
       quantity: 3000,
       timeframe: '72h',
       isActive: true,
@@ -233,7 +355,8 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: pspNysa.id,
       type: 'sprzet',
-      quantity: 12, // 12 łodzi i pomp
+      subcategory: 'Łodzie płaskodenne i pontony ratownicze',
+      quantity: 8,
       timeframe: '24h',
       isActive: true,
     });
@@ -241,7 +364,8 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: pspNysa.id,
       type: 'ludzie',
-      quantity: 30, // 30 strażaków PSP
+      subcategory: 'Ratownicy medyczni i płetwonurkowie PSP',
+      quantity: 30,
       timeframe: '24h',
       isActive: true,
     });
@@ -249,16 +373,18 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: pckNysa.id,
       type: 'woda',
-      quantity: 10000, // 10000 litrów
-      timeframe: 'tydzien',
+      subcategory: 'Woda butelkowana i stacja uzdatniania',
+      quantity: 10000,
+      timeframe: '48h',
       isActive: true,
     });
 
     await Resource.create({
       organizationId: pckNysa.id,
       type: 'inne',
-      quantity: 200, // 200 pakietów pierwszej pomocy i koców
-      timeframe: '48h',
+      subcategory: 'Łóżka polowe, koce termiczne i śpiwory',
+      quantity: 250,
+      timeframe: '24h',
       isActive: true,
     });
 
