@@ -155,7 +155,7 @@ export const createResource = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { type, quantity, timeframe, organization, organizationId } = req.body;
+    const { type, subcategory, quantity, timeframe, organization, organizationId } = req.body;
 
     if (!type || quantity === undefined || !timeframe) {
       res.status(400).json({
@@ -178,6 +178,7 @@ export const createResource = async (
     const newResource = await Resource.create({
       organizationId: targetOrganizationId,
       type,
+      subcategory: subcategory || null,
       quantity,
       timeframe,
       isActive: true,

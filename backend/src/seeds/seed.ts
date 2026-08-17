@@ -184,7 +184,8 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: umKlodzko.id,
       type: 'woda',
-      quantity: 5000, // 5000 litrów
+      subcategory: 'Woda butelkowana (zgrzewki 5L)',
+      quantity: 5000,
       timeframe: '24h',
       isActive: true,
     });
@@ -192,7 +193,17 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: umKlodzko.id,
       type: 'ludzie',
-      quantity: 20, // 20 pracowników
+      subcategory: 'Psycholodzy i wsparcie kryzysowe',
+      quantity: 8,
+      timeframe: '24h',
+      isActive: true,
+    });
+
+    await Resource.create({
+      organizationId: umKlodzko.id,
+      type: 'ludzie',
+      subcategory: 'Pracownicy administracyjno-terenowi',
+      quantity: 12,
       timeframe: '48h',
       isActive: true,
     });
@@ -200,15 +211,26 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: ospKlodzko.id,
       type: 'sprzet',
-      quantity: 8, // 8 motopomp wysokowydajnych
+      subcategory: 'Motopompy szlamowe wysokowydajne',
+      quantity: 6,
       timeframe: '24h',
       isActive: true,
     });
 
     await Resource.create({
       organizationId: ospKlodzko.id,
+      type: 'sprzet',
+      subcategory: 'Agregaty prądotwórcze dużej mocy',
+      quantity: 4,
+      timeframe: '48h',
+      isActive: true,
+    });
+
+    await Resource.create({
+      organizationId: ospKlodzko.id,
       type: 'ludzie',
-      quantity: 16, // 16 ratowników OSP
+      subcategory: 'Strażacy OSP / Ratownicy techniczni',
+      quantity: 16,
       timeframe: '24h',
       isActive: true,
     });
@@ -216,7 +238,8 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: ospKlodzko.id,
       type: 'inne',
-      quantity: 1200, // 1200 worków z piaskiem
+      subcategory: 'Worki z piaskiem i rękawy przeciwpowodziowe',
+      quantity: 1200,
       timeframe: '72h',
       isActive: true,
     });
@@ -224,14 +247,25 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: fundacjaQ.id,
       type: 'ludzie',
-      quantity: 40, // 40 wolontariuszy
+      subcategory: 'Wolontariusze do segregacji i dystrybucji',
+      quantity: 35,
       timeframe: '48h',
       isActive: true,
     });
 
     await Resource.create({
       organizationId: fundacjaQ.id,
+      type: 'ludzie',
+      subcategory: 'Psycholodzy dziecięcy i terapeuci traumy',
+      quantity: 5,
+      timeframe: '72h',
+      isActive: true,
+    });
+
+    await Resource.create({
+      organizationId: fundacjaQ.id,
       type: 'woda',
+      subcategory: 'Cysterny mobilne i zbiorniki DPX',
       quantity: 3000,
       timeframe: '72h',
       isActive: true,
@@ -241,7 +275,8 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: pspNysa.id,
       type: 'sprzet',
-      quantity: 12, // 12 łodzi i pomp
+      subcategory: 'Łodzie płaskodenne i pontony ratownicze',
+      quantity: 8,
       timeframe: '24h',
       isActive: true,
     });
@@ -249,7 +284,8 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: pspNysa.id,
       type: 'ludzie',
-      quantity: 30, // 30 strażaków PSP
+      subcategory: 'Ratownicy medyczni i płetwonurkowie PSP',
+      quantity: 30,
       timeframe: '24h',
       isActive: true,
     });
@@ -257,16 +293,18 @@ export const seedDatabase = async () => {
     await Resource.create({
       organizationId: pckNysa.id,
       type: 'woda',
-      quantity: 10000, // 10000 litrów
-      timeframe: 'tydzien',
+      subcategory: 'Woda butelkowana i stacja uzdatniania',
+      quantity: 10000,
+      timeframe: '48h',
       isActive: true,
     });
 
     await Resource.create({
       organizationId: pckNysa.id,
       type: 'inne',
-      quantity: 200, // 200 pakietów pierwszej pomocy i koców
-      timeframe: '48h',
+      subcategory: 'Łóżka polowe, koce termiczne i śpiwory',
+      quantity: 250,
+      timeframe: '24h',
       isActive: true,
     });
 

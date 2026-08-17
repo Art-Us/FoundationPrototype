@@ -11,6 +11,7 @@ export interface ResourceAttributes {
   id: string;
   organizationId: string;
   type: ResourceType;
+  subcategory?: string | null;
   quantity: number;
   timeframe: ResourceTimeframe;
   isActive: boolean;
@@ -19,7 +20,7 @@ export interface ResourceAttributes {
 }
 
 export interface ResourceCreationAttributes
-  extends Optional<ResourceAttributes, 'id' | 'isActive' | 'createdAt' | 'updatedAt'> {}
+  extends Optional<ResourceAttributes, 'id' | 'subcategory' | 'isActive' | 'createdAt' | 'updatedAt'> {}
 
 export class Resource
   extends Model<ResourceAttributes, ResourceCreationAttributes>
@@ -28,6 +29,7 @@ export class Resource
   declare id: string;
   declare organizationId: string;
   declare type: ResourceType;
+  declare subcategory: string | null;
   declare quantity: number;
   declare timeframe: ResourceTimeframe;
   declare isActive: boolean;
@@ -51,7 +53,7 @@ Resource.init(
       },
     },
     type: {
-      type: DataTypes.ENUM('ludzie', 'woda', 'sprzet', 'inne'),
+      type: DataTypes.STRING,
       allowNull: false,
       validate: {
         isIn: {
@@ -59,6 +61,10 @@ Resource.init(
           msg: 'Nieprawidłowy typ zasobu',
         },
       },
+    },
+    subcategory: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     quantity: {
       type: DataTypes.INTEGER,
@@ -72,7 +78,7 @@ Resource.init(
       },
     },
     timeframe: {
-      type: DataTypes.ENUM('24h', '48h', '72h', 'tydzien'),
+      type: DataTypes.STRING,
       allowNull: false,
       validate: {
         isIn: {
