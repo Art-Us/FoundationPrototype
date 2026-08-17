@@ -10,6 +10,15 @@ import {
   Ban,
 } from 'lucide-react';
 
+export interface AlertHistoryEvent {
+  id: string;
+  action: 'created' | 'deactivated' | 'reactivated' | 'updated';
+  timestamp: string;
+  userName?: string;
+  organizationName?: string;
+  details?: string;
+}
+
 export interface AlertMapItem {
   id: string;
   content: string;
@@ -20,6 +29,7 @@ export interface AlertMapItem {
   voivodeship?: string | null;
   lat?: number | null;
   lng?: number | null;
+  history?: AlertHistoryEvent[] | null;
   authorId?: string;
   municipalityId?: string;
   author?: {

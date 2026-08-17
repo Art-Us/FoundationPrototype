@@ -208,6 +208,21 @@ export const createAlert = async (
       return;
     }
 
+    const userOrg = req.user?.organizationId
+      ? await Organization.findByPk(req.user.organizationId)
+      : null;
+
+    const initialHistory = [
+      {
+        id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        action: 'created' as const,
+        timestamp: new Date().toISOString(),
+        userName: req.user ? `${req.user.firstName} ${req.user.lastName}` : undefined,
+        organizationName: userOrg?.name,
+        details: 'Utworzenie i publikacja komunikatu kryzysowego',
+      },
+    ];
+
     const alert = await Alert.create({
       content,
       category,
@@ -219,6 +234,7 @@ export const createAlert = async (
       voivodeship: voivodeship || null,
       lat: lat !== undefined && lat !== null && lat !== '' ? parseFloat(lat) : null,
       lng: lng !== undefined && lng !== null && lng !== '' ? parseFloat(lng) : null,
+      history: initialHistory,
     });
 
     const populatedAlert = await Alert.findByPk(alert.id, {
@@ -282,18 +298,18 @@ export const deactivateAlert = async (
     const isAuthor = alert.authorId === user.id;
     const isAdmin = user.role === 'admin';
 
-    // Pobranie gminy użytkownika na podstawie jego organizacji
     let userMunicipalityId: string | null = null;
+    let userOrgName: string | undefined = undefined;
     if (user.organizationId) {
       const userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
+        userOrgName = userOrg.name;
       }
     }
 
     const isSameMunicipality = userMunicipalityId && userMunicipalityId === alert.municipalityId;
 
-    // Dostęp ma admin, autor lub członek ze zgodnej gminy
     if (!isAdmin && !isAuthor && !isSameMunicipality) {
       res.status(403).json({
         success: false,
@@ -302,7 +318,18 @@ export const deactivateAlert = async (
       return;
     }
 
+    const currentHistory = Array.isArray(alert.history) ? [...alert.history] : [];
+    currentHistory.push({
+      id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      action: 'deactivated',
+      timestamp: new Date().toISOString(),
+      userName: `${user.firstName} ${user.lastName}`,
+      organizationName: userOrgName,
+      details: 'Odwołanie komunikatu kryzysowego (przeniesienie do archiwum)',
+    });
+
     alert.isActive = false;
+    alert.history = currentHistory;
     await alert.save();
 
     const updatedAlert = await Alert.findByPk(alert.id, {
@@ -367,10 +394,12 @@ export const reactivateAlert = async (
     const isAdmin = user.role === 'admin';
 
     let userMunicipalityId: string | null = null;
+    let userOrgName: string | undefined = undefined;
     if (user.organizationId) {
       const userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
+        userOrgName = userOrg.name;
       }
     }
 
@@ -384,7 +413,18 @@ export const reactivateAlert = async (
       return;
     }
 
+    const currentHistory = Array.isArray(alert.history) ? [...alert.history] : [];
+    currentHistory.push({
+      id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      action: 'reactivated',
+      timestamp: new Date().toISOString(),
+      userName: `${user.firstName} ${user.lastName}`,
+      organizationName: userOrgName,
+      details: 'Wznowienie i ponowna publikacja komunikatu',
+    });
+
     alert.isActive = true;
+    alert.history = currentHistory;
     await alert.save();
 
     const updatedAlert = await Alert.findByPk(alert.id, {
@@ -450,10 +490,12 @@ export const updateAlert = async (
     const isAdmin = user.role === 'admin';
 
     let userMunicipalityId: string | null = null;
+    let userOrgName: string | undefined = undefined;
     if (user.organizationId) {
       const userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
+        userOrgName = userOrg.name;
       }
     }
 
@@ -475,6 +517,17 @@ export const updateAlert = async (
     if (lat !== undefined) alert.lat = lat !== null && lat !== '' ? parseFloat(lat) : null;
     if (lng !== undefined) alert.lng = lng !== null && lng !== '' ? parseFloat(lng) : null;
     if (isActive !== undefined) alert.isActive = Boolean(isActive);
+
+    const currentHistory = Array.isArray(alert.history) ? [...alert.history] : [];
+    currentHistory.push({
+      id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      action: 'updated',
+      timestamp: new Date().toISOString(),
+      userName: `${user.firstName} ${user.lastName}`,
+      organizationName: userOrgName,
+      details: 'Aktualizacja parametrów lub treści komunikatu',
+    });
+    alert.history = currentHistory;
 
     await alert.save();
 

@@ -137,6 +137,10 @@ export const seedDatabase = async () => {
     console.log('✅ Utworzono użytkowników (admin, koordynatorzy, członkowie, niezweryfikowani).');
 
     // 5. Tworzenie Alertów (Alerts)
+    const now = Date.now();
+    const oneHour = 3600 * 1000;
+    const oneDay = 24 * oneHour;
+
     await Alert.create({
       content: 'Gwałtowny przybór wody na rzece Nysa Kłodzka. Wprowadzono stan pogotowia przeciwpowodziowego dla Gminy Kłodzko.',
       category: 'Ostrzeżenie hydrologiczne',
@@ -148,6 +152,16 @@ export const seedDatabase = async () => {
       voivodeship: 'dolnośląskie',
       lat: 50.4380,
       lng: 16.6548,
+      history: [
+        {
+          id: 'seed-evt-1',
+          action: 'created',
+          timestamp: new Date(now - 14 * oneHour).toISOString(),
+          userName: 'Marek Koordynator-Kłodzko',
+          organizationName: 'Urząd Miasta Kłodzko',
+          details: 'Utworzenie i natychmiastowa publikacja alertu',
+        },
+      ],
     });
 
     await Alert.create({
@@ -161,6 +175,16 @@ export const seedDatabase = async () => {
       voivodeship: 'dolnośląskie',
       lat: 50.4420,
       lng: 16.6620,
+      history: [
+        {
+          id: 'seed-evt-2',
+          action: 'created',
+          timestamp: new Date(now - 8 * oneHour).toISOString(),
+          userName: 'Administrator Główny',
+          organizationName: 'Fundacja Ratownictwa i Pomocy Q',
+          details: 'Utworzenie punktu pomocy',
+        },
+      ],
     });
 
     await Alert.create({
@@ -174,6 +198,32 @@ export const seedDatabase = async () => {
       voivodeship: 'dolnośląskie',
       lat: 50.3478,
       lng: 16.8778,
+      history: [
+        {
+          id: 'seed-evt-3a',
+          action: 'created',
+          timestamp: new Date(now - 28 * oneHour).toISOString(),
+          userName: 'Marek Koordynator-Kłodzko',
+          organizationName: 'Urząd Miasta Kłodzko',
+          details: 'Zamknięcie przeprawy',
+        },
+        {
+          id: 'seed-evt-3b',
+          action: 'deactivated',
+          timestamp: new Date(now - 16 * oneHour).toISOString(),
+          userName: 'Marek Koordynator-Kłodzko',
+          organizationName: 'Urząd Miasta Kłodzko',
+          details: 'Tymczasowe otwarcie jednego pasa',
+        },
+        {
+          id: 'seed-evt-3c',
+          action: 'reactivated',
+          timestamp: new Date(now - 4 * oneHour).toISOString(),
+          userName: 'Marek Koordynator-Kłodzko',
+          organizationName: 'Urząd Miasta Kłodzko',
+          details: 'Ponowne zamknięcie ze względu na osiadanie filaru',
+        },
+      ],
     });
 
     await Alert.create({
@@ -187,6 +237,24 @@ export const seedDatabase = async () => {
       voivodeship: 'opolskie',
       lat: 50.4738,
       lng: 17.3344,
+      history: [
+        {
+          id: 'seed-evt-4a',
+          action: 'created',
+          timestamp: new Date(now - 42 * oneHour).toISOString(),
+          userName: 'Tomasz Koordynator-Nysa',
+          organizationName: 'Państwowa Straż Pożarna w Nysie',
+          details: 'Rozpoczęcie akcji umacniania wałów',
+        },
+        {
+          id: 'seed-evt-4b',
+          action: 'deactivated',
+          timestamp: new Date(now - 6 * oneHour).toISOString(),
+          userName: 'Tomasz Koordynator-Nysa',
+          organizationName: 'Państwowa Straż Pożarna w Nysie',
+          details: 'Akcja ratownicza zakończona pomyślnie',
+        },
+      ],
     });
 
     console.log('✅ Utworzono przykładowe komunikaty i alerty.');

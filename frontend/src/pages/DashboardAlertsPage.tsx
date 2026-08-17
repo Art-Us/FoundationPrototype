@@ -4,6 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
 import { LocationPickerMap, LocationDetails } from '../components/LocationPickerMap';
 import {
+  AlertHistoryModal,
+  calculateAlertDurations,
+  formatDuration,
+} from '../components/AlertHistoryModal';
+import {
   BellRing,
   Send,
   Ban,
@@ -22,7 +27,9 @@ import {
   Pencil,
   Save,
   Search,
-  Compass,
+  History,
+  Calendar,
+  ArrowUpDown,
 } from 'lucide-react';
 
 const CATEGORY_OPTIONS = [
@@ -34,15 +41,14 @@ const CATEGORY_OPTIONS = [
   'Informacja ogólna',
 ];
 
+type ArchiveTimeframe = '24h' | '48h' | '72h' | 'tydzien' | 'miesiac' | 'rok' | 'wszystkie' | 'custom';
+type ArchiveSortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'duration-desc' | 'duration-asc';
+
 export const DashboardAlertsPage: React.FC = () => {
   const { user } = useAuth();
 
   const [alerts, setAlerts] = useState<AlertMapItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Wyszukiwarka i filtry wielopoziomowe (Województwo, Powiat, Gmina, Miejscowość, Treść)
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
 
   // Formularz tworzenia alertu
   const [content, setContent] = useState('');
@@ -56,6 +62,20 @@ export const DashboardAlertsPage: React.FC = () => {
 
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(true);
+
+  // =========================================================================
+  // FILTRY I WYSZUKIWANIE W ARCHIWUM
+  // =========================================================================
+  const [archiveSearchQuery, setArchiveSearchQuery] = useState('');
+  const [archiveTimeframe, setArchiveTimeframe] = useState<ArchiveTimeframe>('24h');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [archiveCategoryFilter, setArchiveCategoryFilter] = useState<string>('all');
+  const [archiveOrgFilter, setArchiveOrgFilter] = useState<string>('all');
+  const [archiveSort, setArchiveSort] = useState<ArchiveSortOption>('date-desc');
+
+  // Modal historii cyklu życia
+  const [selectedHistoryAlert, setSelectedHistoryAlert] = useState<AlertMapItem | null>(null);
 
   // Modal edycji alertu
   const [editingAlert, setEditingAlert] = useState<AlertMapItem | null>(null);
@@ -105,7 +125,7 @@ export const DashboardAlertsPage: React.FC = () => {
     fetchAlerts();
   }, []);
 
-  // 1. Obsługa dodawania nowego alertu z danymi geolokalizacyjnymi
+  // 1. Obsługa dodawania nowego alertu
   const handleCreateAlert = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
@@ -158,7 +178,10 @@ export const DashboardAlertsPage: React.FC = () => {
 
     try {
       const res = await api.patch(`/alerts/${alertId}/deactivate`);
-      if (res.data.success) {
+      if (res.data.success && res.data.data) {
+        setAlerts((prev) =>
+          prev.map((a) => (a.id === alertId ? res.data.data : a))
+        );
         showToast('Komunikat został pomyślnie odwołany i przeniesiony do archiwum.');
       } else {
         setAlerts(previousAlerts);
@@ -175,7 +198,7 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
-  // 3. Ponowne alertowanie (Reaktywacja alertu)
+  // 3. Ponowne alertowanie (Wznowienie z archiwum)
   const handleReactivate = async (alertId: string) => {
     const previousAlerts = [...alerts];
 
@@ -186,7 +209,10 @@ export const DashboardAlertsPage: React.FC = () => {
 
     try {
       const res = await api.patch(`/alerts/${alertId}/reactivate`);
-      if (res.data.success) {
+      if (res.data.success && res.data.data) {
+        setAlerts((prev) =>
+          prev.map((a) => (a.id === alertId ? res.data.data : a))
+        );
         showToast('Komunikat został pomyślnie wznowiony i ponownie opublikowany!');
       } else {
         setAlerts(previousAlerts);
@@ -215,7 +241,7 @@ export const DashboardAlertsPage: React.FC = () => {
     setEditLng(alert.lng !== null && alert.lng !== undefined ? String(alert.lng) : '');
   };
 
-  // 5. Zapisanie edycji alertu (PUT /api/alerts/:id)
+  // 5. Zapisanie edycji alertu
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAlert || !editContent.trim()) return;
@@ -250,42 +276,142 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
-  // 6. Różnopoziomowe filtrowanie (Województwo -> Powiat -> Gmina -> Miejscowość -> Treść)
-  const filteredAlerts = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+  // Unikalne organizacje i kategorie do filtrów archiwum
+  const availableArchiveOrgs = useMemo(() => {
+    const map = new Map<string, string>();
+    alerts
+      .filter((a) => !a.isActive)
+      .forEach((a) => {
+        if (a.author?.organization?.name) {
+          map.set(a.author.organization.name, a.author.organization.name);
+        }
+      });
+    return Array.from(map.values()).sort();
+  }, [alerts]);
 
-    return alerts.filter((alert) => {
-      // Filtr kategorii
-      if (selectedCategoryFilter !== 'all' && alert.category !== selectedCategoryFilter) {
-        return false;
-      }
+  // Aktywne alerty
+  const activeAlerts = useMemo(() => {
+    return alerts.filter((a) => a.isActive);
+  }, [alerts]);
 
-      // Wyszukiwanie wielopoziomowe
-      if (!q) return true;
+  // Zarchiwizowane alerty z zaawansowanym filtrowaniem i horyzontami czasowymi
+  const archivedAlerts = useMemo(() => {
+    const rawArchived = alerts.filter((a) => !a.isActive);
+    const now = Date.now();
+    const oneHour = 3600 * 1000;
+    const oneDay = 24 * oneHour;
 
-      const matchContent = alert.content.toLowerCase().includes(q);
-      const matchCategory = alert.category.toLowerCase().includes(q);
-      const matchMunicipality = alert.municipality?.name.toLowerCase().includes(q);
-      const matchLocation = alert.locationName?.toLowerCase().includes(q);
-      const matchCounty = alert.county?.toLowerCase().includes(q);
-      const matchVoivodeship = alert.voivodeship?.toLowerCase().includes(q);
-      const matchOrg = alert.author?.organization?.name.toLowerCase().includes(q);
+    return rawArchived
+      .filter((alert) => {
+        // 1. Filtr horyzontu czasowego (Data utworzenia lub ostatniego zdarzenia)
+        const alertTime = new Date(alert.createdAt).getTime();
 
-      return (
-        matchContent ||
-        matchCategory ||
-        matchMunicipality ||
-        matchLocation ||
-        matchCounty ||
-        matchVoivodeship ||
-        matchOrg
-      );
-    });
-  }, [alerts, searchQuery, selectedCategoryFilter]);
+        if (archiveTimeframe === '24h') {
+          if (now - alertTime > oneDay) return false;
+        } else if (archiveTimeframe === '48h') {
+          if (now - alertTime > 2 * oneDay) return false;
+        } else if (archiveTimeframe === '72h') {
+          if (now - alertTime > 3 * oneDay) return false;
+        } else if (archiveTimeframe === 'tydzien') {
+          if (now - alertTime > 7 * oneDay) return false;
+        } else if (archiveTimeframe === 'miesiac') {
+          if (now - alertTime > 30 * oneDay) return false;
+        } else if (archiveTimeframe === 'rok') {
+          if (now - alertTime > 365 * oneDay) return false;
+        } else if (archiveTimeframe === 'custom') {
+          if (customStartDate) {
+            const startMs = new Date(customStartDate).getTime();
+            if (alertTime < startMs) return false;
+          }
+          if (customEndDate) {
+            const endMs = new Date(customEndDate).getTime() + oneDay;
+            if (alertTime > endMs) return false;
+          }
+        }
 
-  // Podział na aktywne i zarchiwizowane
-  const activeAlerts = filteredAlerts.filter((a) => a.isActive);
-  const archivedAlerts = filteredAlerts.filter((a) => !a.isActive);
+        // 2. Filtr kategorii
+        if (
+          archiveCategoryFilter !== 'all' &&
+          alert.category !== archiveCategoryFilter
+        ) {
+          return false;
+        }
+
+        // 3. Filtr organizacji
+        if (
+          archiveOrgFilter !== 'all' &&
+          alert.author?.organization?.name !== archiveOrgFilter
+        ) {
+          return false;
+        }
+
+        // 4. Wyszukiwanie pełnotekstowe po całym tekście na kartce
+        if (archiveSearchQuery.trim()) {
+          const q = archiveSearchQuery.toLowerCase().trim();
+          const matchContent = alert.content.toLowerCase().includes(q);
+          const matchCategory = alert.category.toLowerCase().includes(q);
+          const matchLocation = alert.locationName?.toLowerCase().includes(q);
+          const matchCounty = alert.county?.toLowerCase().includes(q);
+          const matchVoivodeship = alert.voivodeship?.toLowerCase().includes(q);
+          const matchMunicipality = alert.municipality?.name.toLowerCase().includes(q);
+          const matchOrg = alert.author?.organization?.name.toLowerCase().includes(q);
+          const matchAuthor = alert.author
+            ? `${alert.author.firstName} ${alert.author.lastName}`.toLowerCase().includes(q)
+            : false;
+
+          return (
+            matchContent ||
+            matchCategory ||
+            matchLocation ||
+            matchCounty ||
+            matchVoivodeship ||
+            matchMunicipality ||
+            matchOrg ||
+            matchAuthor
+          );
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (archiveSort === 'date-desc') {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        if (archiveSort === 'date-asc') {
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        }
+        if (archiveSort === 'name-asc') {
+          const nameA = a.locationName || a.municipality?.name || a.content;
+          const nameB = b.locationName || b.municipality?.name || b.content;
+          return nameA.localeCompare(nameB, 'pl');
+        }
+        if (archiveSort === 'name-desc') {
+          const nameA = a.locationName || a.municipality?.name || a.content;
+          const nameB = b.locationName || b.municipality?.name || b.content;
+          return nameB.localeCompare(nameA, 'pl');
+        }
+        if (archiveSort === 'duration-desc') {
+          const durA = calculateAlertDurations(a).totalActiveMs;
+          const durB = calculateAlertDurations(b).totalActiveMs;
+          return durB - durA;
+        }
+        if (archiveSort === 'duration-asc') {
+          const durA = calculateAlertDurations(a).totalActiveMs;
+          const durB = calculateAlertDurations(b).totalActiveMs;
+          return durA - durB;
+        }
+        return 0;
+      });
+  }, [
+    alerts,
+    archiveSearchQuery,
+    archiveTimeframe,
+    customStartDate,
+    customEndDate,
+    archiveCategoryFilter,
+    archiveOrgFilter,
+    archiveSort,
+  ]);
 
   const canManageAlert = (alert: AlertMapItem) => {
     if (!user) return false;
@@ -295,20 +421,6 @@ export const DashboardAlertsPage: React.FC = () => {
       return alert.author.organization.id === user.organizationId;
     }
     return true;
-  };
-
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleString('pl-PL', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateStr;
-    }
   };
 
   return (
@@ -339,18 +451,24 @@ export const DashboardAlertsPage: React.FC = () => {
         </div>
       )}
 
+      {/* Modal Historii Alertu */}
+      <AlertHistoryModal
+        alert={selectedHistoryAlert}
+        onClose={() => setSelectedHistoryAlert(null)}
+      />
+
       {/* Nagłówek sekcji */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-brand-400 font-semibold text-xs tracking-wider uppercase mb-1">
             <Radio className="h-4 w-4 text-red-400 animate-pulse" />
-            <span>Panel Operacyjny • Zarządzanie, Wznawianie i Geolokalizacja</span>
+            <span>Panel Operacyjny • Zarządzanie, Historia i Archiwum Zdarzeń</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Alerty i Ostrzeżenia Kryzysowe
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Wskazuj punkty na mapie (z auto-wykrywaniem miejscowości), edytuj, wznawiaj i przeszukuj po województwach, powiatach i miastach
+            Publikuj ostrzeżenia, wznawiaj komunikaty, przeglądaj historię czasową oraz przeszukuj archiwum według zakresów
           </p>
         </div>
 
@@ -378,7 +496,7 @@ export const DashboardAlertsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Interaktywna Mapa Leaflet */}
+      {/* Interaktywna Mapa Leaflet dla aktywnych alertów */}
       {showMap && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -535,15 +653,9 @@ export const DashboardAlertsPage: React.FC = () => {
                     setLat(String(newLat));
                     setLng(String(newLng));
                     if (details) {
-                      if (details.locationName) {
-                        setLocationName(details.locationName);
-                      }
-                      if (details.county) {
-                        setCounty(details.county);
-                      }
-                      if (details.voivodeship) {
-                        setVoivodeship(details.voivodeship);
-                      }
+                      if (details.locationName) setLocationName(details.locationName);
+                      if (details.county) setCounty(details.county);
+                      if (details.voivodeship) setVoivodeship(details.voivodeship);
                     }
                   }}
                 />
@@ -574,104 +686,41 @@ export const DashboardAlertsPage: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. PASEK RÓŻNOPOZIOMOWEGO WYSZUKIWANIA I FILTROWANIA                    */}
+      {/* 2. SEKCJA AKTYWNYCH KOMUNIKATÓW                                         */}
       {/* ========================================================================= */}
-      <div className="rounded-2xl bg-slate-800/80 p-4 border border-slate-700/80 shadow-lg space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Wyszukiwarka tekstowa (Województwo, Powiat, Gmina, Miasto) */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Wpisz województwo, powiat, gminę, miasto lub treść (np. dolnośląskie, Warszawa, Kłodzko)..."
-              className="w-full rounded-xl bg-slate-900/90 border border-slate-700 py-2.5 pl-10 pr-10 text-xs text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-3 w-3 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+            </span>
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              Aktywne Komunikaty ({activeAlerts.length})
+            </h2>
           </div>
-
-          {/* Szybkie filtry kategorii */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={() => setSelectedCategoryFilter('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                selectedCategoryFilter === 'all'
-                  ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700'
-              }`}
-            >
-              Wszystkie ({alerts.length})
-            </button>
-            {CATEGORY_OPTIONS.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategoryFilter(cat)}
-                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold transition truncate max-w-[130px] ${
-                  selectedCategoryFilter === cat
-                    ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700'
-                }`}
-              >
-                {cat.split(' ')[0]}
-              </button>
-            ))}
-          </div>
+          <span className="text-xs text-red-400 font-semibold bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+            Na żywo na tablicy
+          </span>
         </div>
 
-        {searchQuery && (
-          <div className="text-xs text-brand-300 flex items-center gap-1.5 pt-1">
-            <Compass className="h-3.5 w-3.5 text-teal-400" />
-            <span>
-              Wyniki wyszukiwania dla „<strong>{searchQuery}</strong>”: Znaleziono{' '}
-              <strong>{filteredAlerts.length}</strong> komunikatów
-            </span>
+        {isLoading ? (
+          <div className="py-12 text-center text-slate-400">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent mb-2"></div>
+            <p className="text-sm">Ładowanie alertów...</p>
           </div>
-        )}
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 3. LISTA ALERTÓW: AKTYWNE I ZARCHIWIZOWANE                               */}
-      {/* ========================================================================= */}
-      <div className="space-y-8">
-        {/* SEKCJA: Aktywne Komunikaty */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-3 w-3 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-              </span>
-              <h2 className="text-xl font-bold text-white tracking-tight">
-                Aktywne Komunikaty ({activeAlerts.length})
-              </h2>
-            </div>
-            <span className="text-xs text-red-400 font-semibold bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
-              Na żywo na mapie
-            </span>
+        ) : activeAlerts.length === 0 ? (
+          <div className="rounded-2xl bg-slate-800/40 p-8 text-center border border-slate-700/40">
+            <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2 opacity-80" />
+            <p className="text-slate-300 font-medium">Brak aktywnych ostrzeżeń w Twojej gminie</p>
+            <p className="text-xs text-slate-500 mt-1">Użyj powyższego formularza, aby opublikować nowy alert.</p>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {activeAlerts.map((alert) => {
+              const { totalActiveMs } = calculateAlertDurations(alert);
 
-          {isLoading ? (
-            <div className="py-12 text-center text-slate-400">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent mb-2"></div>
-              <p className="text-sm">Ładowanie alertów...</p>
-            </div>
-          ) : activeAlerts.length === 0 ? (
-            <div className="rounded-2xl bg-slate-800/40 p-8 text-center border border-slate-700/40">
-              <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2 opacity-80" />
-              <p className="text-slate-300 font-medium">Brak aktywnych ostrzeżeń spełniających kryteria</p>
-              <p className="text-xs text-slate-500 mt-1">Zmień frazę wyszukiwania lub opublikuj nowy alert.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {activeAlerts.map((alert) => (
+              return (
                 <div
                   key={alert.id}
                   className="rounded-3xl bg-slate-800/90 p-6 shadow-xl backdrop-blur-xl border border-red-500/30 flex flex-col justify-between space-y-5 hover:border-red-500/60 transition"
@@ -683,7 +732,7 @@ export const DashboardAlertsPage: React.FC = () => {
                         {alert.category}
                       </span>
 
-                      {/* Rozbudowany badge lokalizacji (Miasto / Gmina / Powiat / Województwo) */}
+                      {/* Badge lokalizacji */}
                       <span className="flex items-center gap-1 text-xs text-slate-200 bg-slate-900/90 px-3 py-1 rounded-xl border border-slate-700 font-medium">
                         <MapPin className="h-3.5 w-3.5 text-brand-400 shrink-0" />
                         <span>
@@ -707,143 +756,333 @@ export const DashboardAlertsPage: React.FC = () => {
                       {alert.content}
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 pt-2 border-t border-slate-700/50">
+                    {/* Informacje czasowe i organizacja */}
+                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-slate-400 pt-2 border-t border-slate-700/50">
                       <div className="flex items-center gap-1">
                         <Building className="h-3.5 w-3.5 text-slate-500" />
                         <span>{alert.author?.organization?.name || 'Organizacja'}</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5 text-slate-500" />
-                        <time>{formatDate(alert.createdAt)}</time>
+
+                      <div className="flex items-center gap-1.5 text-brand-300 font-mono font-semibold">
+                        <Clock className="h-3.5 w-3.5 text-brand-400" />
+                        <span>Czas trwania: {formatDuration(totalActiveMs)}</span>
                       </div>
-                      {alert.county && (
-                        <div className="text-[11px] text-slate-500">
-                          {alert.county}
-                        </div>
-                      )}
                     </div>
                   </div>
 
-                  {/* Przyciski Akcji dla Aktywnego Alertu: Edytuj i ODWOŁAJ */}
-                  {canManageAlert(alert) && (
-                    <div className="flex items-center gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(alert)}
-                        className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold transition shrink-0"
-                      >
-                        <Pencil className="h-4 w-4" />
-                        <span>Edytuj</span>
-                      </button>
+                  {/* Przyciski Akcji dla Aktywnego Alertu */}
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHistoryAlert(alert)}
+                      className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-750 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition"
+                      title="Pokaż historię i oś czasu"
+                    >
+                      <History className="h-3.5 w-3.5 text-brand-400" />
+                      <span className="hidden sm:inline">Historia</span>
+                    </button>
 
-                      <button
-                        onClick={() => handleDeactivate(alert.id)}
-                        disabled={actionLoadingId === alert.id}
-                        className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-sm py-3 px-4 shadow-lg shadow-red-600/30 hover:shadow-red-600/50 border border-red-400/30 tracking-wider uppercase transition transform active:scale-[0.98] disabled:opacity-50"
-                      >
-                        {actionLoadingId === alert.id ? (
-                          <>
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                            <span>Odwoływanie...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Ban className="h-4 w-4" />
-                            <span>ODWOŁAJ KOMUNIKAT</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
+                    {canManageAlert(alert) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(alert)}
+                          className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold transition shrink-0"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span>Edytuj</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleDeactivate(alert.id)}
+                          disabled={actionLoadingId === alert.id}
+                          className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-xs py-2.5 px-3 shadow-lg shadow-red-600/30 border border-red-400/30 tracking-wider uppercase transition transform active:scale-[0.98] disabled:opacity-50"
+                        >
+                          {actionLoadingId === alert.id ? (
+                            <>
+                              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                              <span>Odwoływanie...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Ban className="h-3.5 w-3.5" />
+                              <span>ODWOŁAJ</span>
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 3. SEKCJA ZARCHIWIZOWANYCH KOMUNIKATÓW Z PEŁNYM WYSZUKIWANIEM I HISTORIĄ */}
+      {/* ========================================================================= */}
+      <section className="space-y-6 pt-6 border-t border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-2.5 text-slate-400">
+            <Archive className="h-5 w-5 text-slate-400" />
+            <h2 className="text-xl font-bold text-white tracking-tight">
+              Archiwum Komunikatów i Raporty Historyczne ({archivedAlerts.length})
+            </h2>
+          </div>
+          <span className="text-xs text-slate-400 bg-slate-900/80 px-3 py-1 rounded-full border border-slate-700">
+            Wyszukiwanie i Oś Czasu
+          </span>
+        </div>
+
+        {/* Panel Zaawansowanych Filtrów Archiwum */}
+        <div className="rounded-3xl bg-slate-800/90 p-5 sm:p-6 border border-slate-700/80 shadow-xl space-y-4">
+          {/* 1. Horyzonty Czasowe (24h, 48h, 72h, Tydzień, Miesiąc, Rok, Własny zakres) */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-teal-400" />
+              <span>Zakres Czasowy Archiwum:</span>
+            </label>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { key: '24h', label: 'Ostatnie 24h' },
+                { key: '48h', label: '48h' },
+                { key: '72h', label: '72h' },
+                { key: 'tydzien', label: 'Tydzień' },
+                { key: 'miesiac', label: 'Miesiąc' },
+                { key: 'rok', label: 'Rok' },
+                { key: 'wszystkie', label: 'Wszystkie' },
+                { key: 'custom', label: '📅 Własny zakres' },
+              ].map((tf) => (
+                <button
+                  key={tf.key}
+                  type="button"
+                  onClick={() => setArchiveTimeframe(tf.key as ArchiveTimeframe)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    archiveTimeframe === tf.key
+                      ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30 ring-1 ring-brand-400'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700/80'
+                  }`}
+                >
+                  {tf.label}
+                </button>
               ))}
             </div>
-          )}
-        </section>
 
-        {/* SEKCJA: Zarchiwizowane Komunikaty z opcją WZNOWIENIA i EDYCJI */}
-        <section className="space-y-4 pt-6">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2.5 text-slate-400">
-              <Archive className="h-5 w-5 text-slate-500" />
-              <h2 className="text-xl font-bold text-slate-300 tracking-tight">
-                Zarchiwizowane ({archivedAlerts.length})
-              </h2>
-            </div>
-            <span className="text-xs text-slate-400 bg-slate-900/60 px-3 py-1 rounded-full border border-slate-700/50">
-              Historia
-            </span>
+            {/* Własny zakres dat */}
+            {archiveTimeframe === 'custom' && (
+              <div className="flex items-center gap-3 pt-2 flex-wrap animate-fade-in text-xs bg-slate-900/80 p-3 rounded-xl border border-slate-700">
+                <span className="text-slate-400 font-semibold">Od:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="rounded-lg bg-slate-850 border border-slate-700 py-1 px-2.5 text-white"
+                />
+                <span className="text-slate-400 font-semibold">Do:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="rounded-lg bg-slate-850 border border-slate-700 py-1 px-2.5 text-white"
+                />
+              </div>
+            )}
           </div>
 
-          {archivedAlerts.length === 0 ? (
-            <div className="rounded-2xl bg-slate-800/20 p-6 text-center border border-slate-800 text-xs text-slate-500">
-              Brak zarchiwizowanych alertów spełniających kryteria.
+          {/* 2. Wyszukiwanie po całym tekście na kartce oraz selektory */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-700/60">
+            {/* Wyszukiwarka po całej treści/kartce */}
+            <div className="md:col-span-5 relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={archiveSearchQuery}
+                onChange={(e) => setArchiveSearchQuery(e.target.value)}
+                placeholder="Szukaj w archiwum po treści, miejscu, autorze, organizacji..."
+                className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2.5 pl-10 pr-10 text-xs text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none"
+              />
+              {archiveSearchQuery && (
+                <button
+                  onClick={() => setArchiveSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {archivedAlerts.map((alert) => (
+
+            {/* Filtr Kategorii */}
+            <div className="md:col-span-2">
+              <select
+                value={archiveCategoryFilter}
+                onChange={(e) => setArchiveCategoryFilter(e.target.value)}
+                className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2.5 px-3 text-xs text-white focus:border-brand-500 focus:outline-none"
+              >
+                <option value="all">Wszystkie typy</option>
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtr Organizacji */}
+            <div className="md:col-span-2">
+              <select
+                value={archiveOrgFilter}
+                onChange={(e) => setArchiveOrgFilter(e.target.value)}
+                className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2.5 px-3 text-xs text-white focus:border-brand-500 focus:outline-none"
+              >
+                <option value="all">Wszystkie organizacje</option>
+                {availableArchiveOrgs.map((org) => (
+                  <option key={org} value={org}>
+                    {org}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sortowanie */}
+            <div className="md:col-span-3">
+              <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5">
+                <ArrowUpDown className="h-3.5 w-3.5 text-brand-400 shrink-0" />
+                <select
+                  value={archiveSort}
+                  onChange={(e) => setArchiveSort(e.target.value as ArchiveSortOption)}
+                  className="bg-transparent text-xs text-white focus:outline-none w-full font-semibold"
+                >
+                  <option value="date-desc" className="bg-slate-900">Data: Od najnowszych</option>
+                  <option value="date-asc" className="bg-slate-900">Data: Od najstarszych</option>
+                  <option value="name-asc" className="bg-slate-900">Lokalizacja / Treść: A-Z</option>
+                  <option value="name-desc" className="bg-slate-900">Lokalizacja / Treść: Z-A</option>
+                  <option value="duration-desc" className="bg-slate-900">Czas trwania: Od najdłuższego</option>
+                  <option value="duration-asc" className="bg-slate-900">Czas trwania: Od najkrótszego</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lista Zarchiwizowanych Alertów */}
+        {archivedAlerts.length === 0 ? (
+          <div className="rounded-3xl bg-slate-800/30 p-10 text-center border border-slate-800 space-y-2">
+            <Archive className="h-8 w-8 text-slate-600 mx-auto" />
+            <p className="text-sm text-slate-300 font-medium">Brak zarchiwizowanych komunikatów w wybranym przedziale</p>
+            <p className="text-xs text-slate-500">Zmień zakres czasu (np. Tydzień, Miesiąc, Wszystkie) lub zresetuj filtry wyszukiwania.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {archivedAlerts.map((alert) => {
+              const { totalActiveMs, firstEventDate, lastEventDate, totalEventsCount } =
+                calculateAlertDurations(alert);
+
+              return (
                 <div
                   key={alert.id}
-                  className="rounded-2xl bg-slate-850/50 p-5 border border-slate-800 opacity-80 hover:opacity-100 transition space-y-4 flex flex-col justify-between"
+                  className="rounded-3xl bg-slate-850/80 p-6 border border-slate-750 hover:border-slate-600 transition space-y-4 flex flex-col justify-between shadow-lg backdrop-blur-md"
                 >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="rounded-lg bg-slate-800 px-2.5 py-1 text-xs text-slate-400 font-medium">
+                  <div className="space-y-3">
+                    {/* Belka górna: Kategoria i Status */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="rounded-xl bg-slate-900 border border-slate-700/80 px-2.5 py-1 text-xs text-slate-300 font-bold uppercase tracking-wider">
                         {alert.category}
                       </span>
-                      <span className="text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                        ✓ Zarchiwizowany
+                      <span className="text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/20 flex items-center gap-1">
+                        <span>✓ Zarchiwizowany</span>
                       </span>
                     </div>
 
-                    <p className="text-sm text-slate-300 leading-snug">{alert.content}</p>
+                    {/* Treść */}
+                    <p className="text-sm sm:text-base text-slate-200 font-medium leading-relaxed">
+                      {alert.content}
+                    </p>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
-                      <span>
-                        {alert.locationName || alert.municipality?.name} •{' '}
-                        {alert.author?.organization?.name || 'Organizacja'}
+                    {/* Dane geolokalizacyjne i organizacja */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                      <span className="flex items-center gap-1 bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-700">
+                        <MapPin className="h-3.5 w-3.5 text-brand-400" />
+                        <span>
+                          <strong>{alert.locationName || alert.municipality?.name || 'Gmina'}</strong>
+                          {alert.voivodeship && ` (woj. ${alert.voivodeship})`}
+                        </span>
                       </span>
-                      <time>{formatDate(alert.createdAt)}</time>
+                      <span className="flex items-center gap-1 bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-700 text-slate-400">
+                        <Building className="h-3.5 w-3.5 text-slate-500" />
+                        <span>{alert.author?.organization?.name || 'Organizacja'}</span>
+                      </span>
+                    </div>
+
+                    {/* Kafelki metryk czasowych cyklu życia */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs font-mono">
+                      <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-750 space-y-0.5">
+                        <span className="text-[10px] text-slate-400 font-sans block">Łączny czas aktywności:</span>
+                        <span className="text-xs font-extrabold text-brand-400">
+                          {formatDuration(totalActiveMs)}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-750 space-y-0.5">
+                        <span className="text-[10px] text-slate-400 font-sans block">Okres zdarzenia:</span>
+                        <span className="text-[11px] font-bold text-slate-300">
+                          {new Date(firstEventDate).toLocaleDateString('pl-PL')} ➔{' '}
+                          {new Date(lastEventDate).toLocaleDateString('pl-PL')}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Przyciski: WZNÓW KOMUNIKAT oraz Edytuj */}
-                  {canManageAlert(alert) && (
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60">
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(alert)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        <span>Edytuj</span>
-                      </button>
+                  {/* Przyciski: HISTORIA, EDYTUJ i WZNÓW KOMUNIKAT */}
+                  <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHistoryAlert(alert)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-750 text-slate-300 hover:text-white text-xs font-bold border border-slate-700 transition"
+                      title="Zobacz pełną oś czasu i cykle wznowień"
+                    >
+                      <History className="h-3.5 w-3.5 text-brand-400" />
+                      <span>Historia ({totalEventsCount})</span>
+                    </button>
 
-                      <button
-                        onClick={() => handleReactivate(alert.id)}
-                        disabled={actionLoadingId === alert.id}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs py-2 px-3 shadow-md shadow-emerald-600/20 transition transform active:scale-95 disabled:opacity-50"
-                      >
-                        {actionLoadingId === alert.id ? (
-                          <>
-                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                            <span>Wznawianie...</span>
-                          </>
-                        ) : (
-                          <>
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            <span>WZNÓW KOMUNIKAT</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
+                    {canManageAlert(alert) && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(alert)}
+                          className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span>Edytuj</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleReactivate(alert.id)}
+                          disabled={actionLoadingId === alert.id}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs py-2 px-3 shadow-md shadow-emerald-600/20 transition transform active:scale-95 disabled:opacity-50"
+                        >
+                          {actionLoadingId === alert.id ? (
+                            <>
+                              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                              <span>Wznawianie...</span>
+                            </>
+                          ) : (
+                            <>
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              <span>WZNÓW KOMUNIKAT</span>
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* ========================================================================= */}
       {/* MODAL EDYCJI ALERTU Z MAPĄ I GEOLOKALIZACJĄ                               */}
