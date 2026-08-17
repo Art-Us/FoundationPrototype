@@ -143,6 +143,9 @@ export const seedDatabase = async () => {
       isActive: true,
       authorId: koordKlodzko.id,
       municipalityId: klodzko.id,
+      locationName: 'Kłodzko',
+      county: 'powiat kłodzki',
+      voivodeship: 'dolnośląskie',
       lat: 50.4380,
       lng: 16.6548,
     });
@@ -153,6 +156,9 @@ export const seedDatabase = async () => {
       isActive: true,
       authorId: admin.id,
       municipalityId: klodzko.id,
+      locationName: 'Kłodzko',
+      county: 'powiat kłodzki',
+      voivodeship: 'dolnośląskie',
       lat: 50.4420,
       lng: 16.6620,
     });
@@ -163,6 +169,9 @@ export const seedDatabase = async () => {
       isActive: true,
       authorId: koordKlodzko.id,
       municipalityId: ladek.id,
+      locationName: 'Lądek-Zdrój',
+      county: 'powiat kłodzki',
+      voivodeship: 'dolnośląskie',
       lat: 50.3478,
       lng: 16.8778,
     });
@@ -173,6 +182,9 @@ export const seedDatabase = async () => {
       isActive: false, // nieaktywny
       authorId: koordNysa.id,
       municipalityId: nysa.id,
+      locationName: 'Nysa',
+      county: 'powiat nyski',
+      voivodeship: 'opolskie',
       lat: 50.4738,
       lng: 17.3344,
     });

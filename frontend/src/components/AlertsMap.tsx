@@ -15,6 +15,9 @@ export interface AlertMapItem {
   content: string;
   category: string;
   isActive: boolean;
+  locationName?: string | null;
+  county?: string | null;
+  voivodeship?: string | null;
   lat?: number | null;
   lng?: number | null;
   authorId?: string;
@@ -210,9 +213,13 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-800">
                       {alert.category}
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-red-500" />
-                      {alert.municipality?.name || 'Gmina'}
+                    <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-red-500 shrink-0" />
+                      <span className="truncate max-w-[150px]">
+                        {alert.locationName
+                          ? `${alert.locationName}${alert.voivodeship ? ` (${alert.voivodeship})` : ''}`
+                          : alert.municipality?.name || 'Lokalizacja'}
+                      </span>
                     </span>
                   </div>
 

@@ -170,7 +170,17 @@ export const createAlert = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { content, category, municipality, municipalityId, lat, lng } = req.body;
+    const {
+      content,
+      category,
+      municipality,
+      municipalityId,
+      locationName,
+      county,
+      voivodeship,
+      lat,
+      lng,
+    } = req.body;
 
     if (!content || !category) {
       res.status(400).json({
@@ -204,8 +214,11 @@ export const createAlert = async (
       municipalityId: targetMunicipalityId,
       authorId: req.user!.id,
       isActive: true,
-      lat: lat ? parseFloat(lat) : null,
-      lng: lng ? parseFloat(lng) : null,
+      locationName: locationName || null,
+      county: county || null,
+      voivodeship: voivodeship || null,
+      lat: lat !== undefined && lat !== null && lat !== '' ? parseFloat(lat) : null,
+      lng: lng !== undefined && lng !== null && lng !== '' ? parseFloat(lng) : null,
     });
 
     const populatedAlert = await Alert.findByPk(alert.id, {
@@ -323,6 +336,179 @@ export const deactivateAlert = async (
     res.status(500).json({
       success: false,
       message: 'Wystąpił błąd podczas dezaktywacji alertu.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Reaktywuje alert (isActive = true) przenosząc go z powrotem do aktywnych
+ * @route   PATCH /api/alerts/:id/reactivate
+ * @access  Private (wymaga protect)
+ */
+export const reactivateAlert = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const alert = await Alert.findByPk(id);
+    if (!alert) {
+      res.status(404).json({
+        success: false,
+        message: 'Alert o podanym identyfikatorze nie istnieje.',
+      });
+      return;
+    }
+
+    const user = req.user!;
+    const isAuthor = alert.authorId === user.id;
+    const isAdmin = user.role === 'admin';
+
+    let userMunicipalityId: string | null = null;
+    if (user.organizationId) {
+      const userOrg = await Organization.findByPk(user.organizationId);
+      if (userOrg) {
+        userMunicipalityId = userOrg.municipalityId;
+      }
+    }
+
+    const isSameMunicipality = userMunicipalityId && userMunicipalityId === alert.municipalityId;
+
+    if (!isAdmin && !isAuthor && !isSameMunicipality) {
+      res.status(403).json({
+        success: false,
+        message: 'Dostęp zabroniony. Możesz reaktywować wyłącznie alerty ze swojej gminy lub organizacji.',
+      });
+      return;
+    }
+
+    alert.isActive = true;
+    await alert.save();
+
+    const updatedAlert = await Alert.findByPk(alert.id, {
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+          include: [
+            {
+              model: Organization,
+              as: 'organization',
+              attributes: ['id', 'name', 'type'],
+            },
+          ],
+        },
+        {
+          model: Municipality,
+          as: 'municipality',
+          attributes: ['id', 'name'],
+        },
+      ],
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Alert został pomyślnie reaktywowany i ponownie opublikowany.',
+      data: updatedAlert,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas reaktywacji alertu.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Aktualizuje treść, kategorię lub współrzędne istniejącego alertu
+ * @route   PUT /api/alerts/:id
+ * @access  Private (wymaga protect)
+ */
+export const updateAlert = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { content, category, locationName, county, voivodeship, lat, lng, isActive } = req.body;
+
+    const alert = await Alert.findByPk(id);
+    if (!alert) {
+      res.status(404).json({
+        success: false,
+        message: 'Alert o podanym identyfikatorze nie istnieje.',
+      });
+      return;
+    }
+
+    const user = req.user!;
+    const isAuthor = alert.authorId === user.id;
+    const isAdmin = user.role === 'admin';
+
+    let userMunicipalityId: string | null = null;
+    if (user.organizationId) {
+      const userOrg = await Organization.findByPk(user.organizationId);
+      if (userOrg) {
+        userMunicipalityId = userOrg.municipalityId;
+      }
+    }
+
+    const isSameMunicipality = userMunicipalityId && userMunicipalityId === alert.municipalityId;
+
+    if (!isAdmin && !isAuthor && !isSameMunicipality) {
+      res.status(403).json({
+        success: false,
+        message: 'Dostęp zabroniony. Możesz edytować wyłącznie alerty ze swojej gminy lub organizacji.',
+      });
+      return;
+    }
+
+    if (content !== undefined) alert.content = content.trim();
+    if (category !== undefined) alert.category = category;
+    if (locationName !== undefined) alert.locationName = locationName || null;
+    if (county !== undefined) alert.county = county || null;
+    if (voivodeship !== undefined) alert.voivodeship = voivodeship || null;
+    if (lat !== undefined) alert.lat = lat !== null && lat !== '' ? parseFloat(lat) : null;
+    if (lng !== undefined) alert.lng = lng !== null && lng !== '' ? parseFloat(lng) : null;
+    if (isActive !== undefined) alert.isActive = Boolean(isActive);
+
+    await alert.save();
+
+    const updatedAlert = await Alert.findByPk(alert.id, {
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+          include: [
+            {
+              model: Organization,
+              as: 'organization',
+              attributes: ['id', 'name', 'type'],
+            },
+          ],
+        },
+        {
+          model: Municipality,
+          as: 'municipality',
+          attributes: ['id', 'name'],
+        },
+      ],
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Alert został pomyślnie zaktualizowany.',
+      data: updatedAlert,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas aktualizacji alertu.',
       error: error.message,
     });
   }

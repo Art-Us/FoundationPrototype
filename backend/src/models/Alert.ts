@@ -8,6 +8,9 @@ export interface AlertAttributes {
   isActive: boolean;
   authorId: string;
   municipalityId: string;
+  locationName?: string | null;
+  county?: string | null;
+  voivodeship?: string | null;
   lat?: number | null;
   lng?: number | null;
   createdAt?: Date;
@@ -15,7 +18,10 @@ export interface AlertAttributes {
 }
 
 export interface AlertCreationAttributes
-  extends Optional<AlertAttributes, 'id' | 'isActive' | 'lat' | 'lng' | 'createdAt' | 'updatedAt'> {}
+  extends Optional<
+    AlertAttributes,
+    'id' | 'isActive' | 'locationName' | 'county' | 'voivodeship' | 'lat' | 'lng' | 'createdAt' | 'updatedAt'
+  > {}
 
 export class Alert
   extends Model<AlertAttributes, AlertCreationAttributes>
@@ -27,6 +33,9 @@ export class Alert
   declare isActive: boolean;
   declare authorId: string;
   declare municipalityId: string;
+  declare locationName: string | null;
+  declare county: string | null;
+  declare voivodeship: string | null;
   declare lat: number | null;
   declare lng: number | null;
   declare readonly createdAt: Date;
@@ -74,6 +83,18 @@ Alert.init(
         model: 'municipalities',
         key: 'id',
       },
+    },
+    locationName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    county: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    voivodeship: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     lat: {
       type: DataTypes.FLOAT,

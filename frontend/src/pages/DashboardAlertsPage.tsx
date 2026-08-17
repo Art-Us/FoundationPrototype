@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
+import { LocationPickerMap, LocationDetails } from '../components/LocationPickerMap';
 import {
   BellRing,
   Send,
@@ -17,6 +18,11 @@ import {
   Check,
   X,
   Map as MapIcon,
+  RotateCcw,
+  Pencil,
+  Save,
+  Search,
+  Compass,
 } from 'lucide-react';
 
 const CATEGORY_OPTIONS = [
@@ -33,13 +39,34 @@ export const DashboardAlertsPage: React.FC = () => {
 
   const [alerts, setAlerts] = useState<AlertMapItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Wyszukiwarka i filtry wielopoziomowe (Województwo, Powiat, Gmina, Miejscowość, Treść)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+
+  // Formularz tworzenia alertu
   const [content, setContent] = useState('');
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
+  const [locationName, setLocationName] = useState('');
+  const [county, setCounty] = useState('');
+  const [voivodeship, setVoivodeship] = useState('');
   const [lat, setLat] = useState<string>('');
   const [lng, setLng] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(true);
+
+  // Modal edycji alertu
+  const [editingAlert, setEditingAlert] = useState<AlertMapItem | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editLocationName, setEditLocationName] = useState('');
+  const [editCounty, setEditCounty] = useState('');
+  const [editVoivodeship, setEditVoivodeship] = useState('');
+  const [editLat, setEditLat] = useState<string>('');
+  const [editLng, setEditLng] = useState<string>('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // System powiadomień Toast
   const [toast, setToast] = useState<{
@@ -78,7 +105,7 @@ export const DashboardAlertsPage: React.FC = () => {
     fetchAlerts();
   }, []);
 
-  // 1. Obsługa dodawania nowego alertu
+  // 1. Obsługa dodawania nowego alertu z danymi geolokalizacyjnymi
   const handleCreateAlert = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
@@ -88,6 +115,9 @@ export const DashboardAlertsPage: React.FC = () => {
       const payload: any = {
         content: content.trim(),
         category,
+        locationName: locationName.trim() || undefined,
+        county: county.trim() || undefined,
+        voivodeship: voivodeship.trim() || undefined,
       };
 
       if (lat && lng) {
@@ -100,6 +130,9 @@ export const DashboardAlertsPage: React.FC = () => {
       if (res.data.success && res.data.data) {
         setAlerts((prev) => [res.data.data, ...prev]);
         setContent('');
+        setLocationName('');
+        setCounty('');
+        setVoivodeship('');
         setLat('');
         setLng('');
         showToast('Nowy komunikat kryzysowy został pomyślnie opublikowany!');
@@ -114,11 +147,10 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
-  // 2. Obsługa odwoływania komunikatu (dezaktywacja z optymistyczną aktualizacją UI)
+  // 2. Obsługa odwoływania komunikatu
   const handleDeactivate = async (alertId: string) => {
     const previousAlerts = [...alerts];
 
-    // Optymistyczna zmiana w UI: natychmiast zmieniamy isActive na false
     setAlerts((prev) =>
       prev.map((a) => (a.id === alertId ? { ...a, isActive: false } : a))
     );
@@ -127,7 +159,7 @@ export const DashboardAlertsPage: React.FC = () => {
     try {
       const res = await api.patch(`/alerts/${alertId}/deactivate`);
       if (res.data.success) {
-        showToast('Komunikat został pomyślnie odwołany i zarchiwizowany.');
+        showToast('Komunikat został pomyślnie odwołany i przeniesiony do archiwum.');
       } else {
         setAlerts(previousAlerts);
         showToast('Nie udało się odwołać alertu.', 'error');
@@ -143,11 +175,119 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
-  // Podział na aktywne i zarchiwizowane
-  const activeAlerts = alerts.filter((a) => a.isActive);
-  const archivedAlerts = alerts.filter((a) => !a.isActive);
+  // 3. Ponowne alertowanie (Reaktywacja alertu)
+  const handleReactivate = async (alertId: string) => {
+    const previousAlerts = [...alerts];
 
-  const canDeactivateAlert = (alert: AlertMapItem) => {
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, isActive: true } : a))
+    );
+    setActionLoadingId(alertId);
+
+    try {
+      const res = await api.patch(`/alerts/${alertId}/reactivate`);
+      if (res.data.success) {
+        showToast('Komunikat został pomyślnie wznowiony i ponownie opublikowany!');
+      } else {
+        setAlerts(previousAlerts);
+        showToast('Nie udało się wznowić alertu.', 'error');
+      }
+    } catch (error: any) {
+      setAlerts(previousAlerts);
+      showToast(
+        error.response?.data?.message || 'Wystąpił błąd podczas wznawiania komunikatu.',
+        'error'
+      );
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // 4. Otwarcie modalu edycji
+  const openEditModal = (alert: AlertMapItem) => {
+    setEditingAlert(alert);
+    setEditContent(alert.content);
+    setEditCategory(alert.category);
+    setEditLocationName(alert.locationName || '');
+    setEditCounty(alert.county || '');
+    setEditVoivodeship(alert.voivodeship || '');
+    setEditLat(alert.lat !== null && alert.lat !== undefined ? String(alert.lat) : '');
+    setEditLng(alert.lng !== null && alert.lng !== undefined ? String(alert.lng) : '');
+  };
+
+  // 5. Zapisanie edycji alertu (PUT /api/alerts/:id)
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAlert || !editContent.trim()) return;
+
+    setIsSavingEdit(true);
+    try {
+      const payload: any = {
+        content: editContent.trim(),
+        category: editCategory,
+        locationName: editLocationName.trim() || null,
+        county: editCounty.trim() || null,
+        voivodeship: editVoivodeship.trim() || null,
+        lat: editLat ? parseFloat(editLat) : null,
+        lng: editLng ? parseFloat(editLng) : null,
+      };
+
+      const res = await api.put(`/alerts/${editingAlert.id}`, payload);
+      if (res.data.success && res.data.data) {
+        setAlerts((prev) =>
+          prev.map((a) => (a.id === editingAlert.id ? res.data.data : a))
+        );
+        showToast('Komunikat został pomyślnie zaktualizowany!');
+        setEditingAlert(null);
+      }
+    } catch (error: any) {
+      showToast(
+        error.response?.data?.message || 'Wystąpił błąd podczas zapisywania zmian.',
+        'error'
+      );
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // 6. Różnopoziomowe filtrowanie (Województwo -> Powiat -> Gmina -> Miejscowość -> Treść)
+  const filteredAlerts = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+
+    return alerts.filter((alert) => {
+      // Filtr kategorii
+      if (selectedCategoryFilter !== 'all' && alert.category !== selectedCategoryFilter) {
+        return false;
+      }
+
+      // Wyszukiwanie wielopoziomowe
+      if (!q) return true;
+
+      const matchContent = alert.content.toLowerCase().includes(q);
+      const matchCategory = alert.category.toLowerCase().includes(q);
+      const matchMunicipality = alert.municipality?.name.toLowerCase().includes(q);
+      const matchLocation = alert.locationName?.toLowerCase().includes(q);
+      const matchCounty = alert.county?.toLowerCase().includes(q);
+      const matchVoivodeship = alert.voivodeship?.toLowerCase().includes(q);
+      const matchOrg = alert.author?.organization?.name.toLowerCase().includes(q);
+
+      return (
+        matchContent ||
+        matchCategory ||
+        matchMunicipality ||
+        matchLocation ||
+        matchCounty ||
+        matchVoivodeship ||
+        matchOrg
+      );
+    });
+  }, [alerts, searchQuery, selectedCategoryFilter]);
+
+  // Podział na aktywne i zarchiwizowane
+  const activeAlerts = filteredAlerts.filter((a) => a.isActive);
+  const archivedAlerts = filteredAlerts.filter((a) => !a.isActive);
+
+  const canManageAlert = (alert: AlertMapItem) => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     if (alert.authorId === user.id) return true;
@@ -204,13 +344,13 @@ export const DashboardAlertsPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-brand-400 font-semibold text-xs tracking-wider uppercase mb-1">
             <Radio className="h-4 w-4 text-red-400 animate-pulse" />
-            <span>Panel Operacyjny • Zarządzanie Komunikatami</span>
+            <span>Panel Operacyjny • Zarządzanie, Wznawianie i Geolokalizacja</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Alerty i Ostrzeżenia Gminne
+            Alerty i Ostrzeżenia Kryzysowe
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Publikuj ostrzeżenia, monitoruj punkty na mapie Leaflet JS i odwołuj aktywne komunikaty
+            Wskazuj punkty na mapie (z auto-wykrywaniem miejscowości), edytuj, wznawiaj i przeszukuj po województwach, powiatach i miastach
           </p>
         </div>
 
@@ -238,16 +378,16 @@ export const DashboardAlertsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Interaktywna Mapa Leaflet dla gminy */}
+      {/* Interaktywna Mapa Leaflet */}
       {showMap && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-bold text-white">
               <MapPin className="h-4 w-4 text-red-400" />
-              <span>Lokalizacja aktywnych zdarzeń na mapie gminy</span>
+              <span>Lokalizacja aktywnych zdarzeń na mapie ({activeAlerts.length})</span>
             </div>
-            <span className="text-xs text-slate-400">
-              Możesz odwołać komunikat klikając bezpośrednio na pinezkę
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              Kliknij pinezkę, aby zobaczyć szczegóły lub odwołać komunikat
             </span>
           </div>
 
@@ -255,111 +395,251 @@ export const DashboardAlertsPage: React.FC = () => {
             alerts={activeAlerts}
             height="380px"
             onDeactivate={handleDeactivate}
-            canDeactivate={canDeactivateAlert}
+            canDeactivate={canManageAlert}
             actionLoadingId={actionLoadingId}
           />
         </section>
       )}
 
-      {/* 1. Formularz dodawania alertu */}
+      {/* 1. Formularz dodawania alertu z automatycznym Reverse Geocoding */}
       <div className="rounded-3xl bg-slate-800/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl border border-slate-700/70">
         <div className="flex items-center gap-3 mb-6">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20">
             <BellRing className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Opublikuj nowy komunikat</h2>
+            <h2 className="text-lg font-bold text-white">Opublikuj nowy komunikat kryzysowy</h2>
             <p className="text-xs text-slate-400">
-              Komunikat pojawi się natychmiast na publicznej tablicy i mapie Leaflet
+              Kliknij punkt na mapie – nazwa miejscowości, powiat i województwo zostaną wykryte automatycznie!
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleCreateAlert} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-1">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Kategoria zdarzenia
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-xl bg-slate-900/90 border border-slate-700 py-3 px-4 text-white text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
-              >
-                {CATEGORY_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt} className="bg-slate-900 text-white">
-                    {opt}
-                  </option>
-                ))}
-              </select>
+        <form onSubmit={handleCreateAlert} className="space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Lewa strona: Kategoria, Treść i Wykryta Lokalizacja */}
+            <div className="lg:col-span-7 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Kategoria zdarzenia
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full rounded-xl bg-slate-900/90 border border-slate-700 py-2.5 px-3.5 text-white text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
+                >
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt} className="bg-slate-900 text-white">
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Treść komunikatu
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Wprowadź szczegółowe informacje operacyjne (zalecenia dla mieszkańców, wyznaczone objazdy, punkty pomocy)..."
+                  className="w-full rounded-xl bg-slate-900/90 border border-slate-700 p-3 text-white placeholder-slate-500 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition resize-none"
+                ></textarea>
+              </div>
+
+              {/* Pola administracyjne (Miejscowość, Powiat, Województwo) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    Miasto / Wieś / Dzielnica
+                  </label>
+                  <input
+                    type="text"
+                    value={locationName}
+                    onChange={(e) => setLocationName(e.target.value)}
+                    placeholder="np. Warszawa, Kłodzko"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2 px-3 text-xs text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    Powiat
+                  </label>
+                  <input
+                    type="text"
+                    value={county}
+                    onChange={(e) => setCounty(e.target.value)}
+                    placeholder="np. powiat kłodzki"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2 px-3 text-xs text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    Województwo
+                  </label>
+                  <input
+                    type="text"
+                    value={voivodeship}
+                    onChange={(e) => setVoivodeship(e.target.value)}
+                    placeholder="np. dolnośląskie, mazowieckie"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2 px-3 text-xs text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    Szerokość geograficzna (Lat)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={lat}
+                    onChange={(e) => setLat(e.target.value)}
+                    placeholder="np. 50.4380"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-1.5 px-3 text-xs text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                    Długość geograficzna (Lng)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={lng}
+                    onChange={(e) => setLng(e.target.value)}
+                    placeholder="np. 16.6548"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-1.5 px-3 text-xs text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none font-mono"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="sm:col-span-1">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Szerokość (Lat - opcjonalnie)
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={lat}
-                onChange={(e) => setLat(e.target.value)}
-                placeholder="np. 50.4380"
-                className="w-full rounded-xl bg-slate-900/90 border border-slate-700 py-3 px-4 text-white placeholder-slate-500 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
-              />
+            {/* Prawa strona: Interaktywny Wybór Punktu na Mapie */}
+            <div className="lg:col-span-5 space-y-3 flex flex-col justify-between">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-brand-400" />
+                  <span>Wskaż punkt zdarzenia (kliknij na mapie)</span>
+                </label>
+                <LocationPickerMap
+                  lat={lat ? parseFloat(lat) : null}
+                  lng={lng ? parseFloat(lng) : null}
+                  height="220px"
+                  onChange={(newLat, newLng, details?: LocationDetails) => {
+                    setLat(String(newLat));
+                    setLng(String(newLng));
+                    if (details) {
+                      if (details.locationName) {
+                        setLocationName(details.locationName);
+                      }
+                      if (details.county) {
+                        setCounty(details.county);
+                      }
+                      if (details.voivodeship) {
+                        setVoivodeship(details.voivodeship);
+                      }
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !content.trim()}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-teal-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 hover:from-brand-500 hover:to-teal-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 disabled:opacity-50 transition transform active:scale-95"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      <span>Publikowanie...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      <span>Opublikuj alert na mapie</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-
-            <div className="sm:col-span-1">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Długość (Lng - opcjonalnie)
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={lng}
-                onChange={(e) => setLng(e.target.value)}
-                placeholder="np. 16.6548"
-                className="w-full rounded-xl bg-slate-900/90 border border-slate-700 py-3 px-4 text-white placeholder-slate-500 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-              Treść komunikatu
-            </label>
-            <textarea
-              required
-              rows={4}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Wprowadź szczegółowe informacje (np. lokalizacja zagrożenia, zalecenia dla mieszkańców, godziny otwarcia punktu pomocy)..."
-              className="w-full rounded-xl bg-slate-900/90 border border-slate-700 p-4 text-white placeholder-slate-500 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition resize-none"
-            ></textarea>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting || !content.trim()}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-teal-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 hover:from-brand-500 hover:to-teal-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 disabled:opacity-50 transition transform active:scale-95"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                  <span>Publikowanie...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  <span>Opublikuj alert na mapie</span>
-                </>
-              )}
-            </button>
           </div>
         </form>
       </div>
 
-      {/* 2. Lista Alertów: Pogrupowane na Aktywne i Zarchiwizowane */}
+      {/* ========================================================================= */}
+      {/* 2. PASEK RÓŻNOPOZIOMOWEGO WYSZUKIWANIA I FILTROWANIA                    */}
+      {/* ========================================================================= */}
+      <div className="rounded-2xl bg-slate-800/80 p-4 border border-slate-700/80 shadow-lg space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Wyszukiwarka tekstowa (Województwo, Powiat, Gmina, Miasto) */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Wpisz województwo, powiat, gminę, miasto lub treść (np. dolnośląskie, Warszawa, Kłodzko)..."
+              className="w-full rounded-xl bg-slate-900/90 border border-slate-700 py-2.5 pl-10 pr-10 text-xs text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Szybkie filtry kategorii */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSelectedCategoryFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                selectedCategoryFilter === 'all'
+                  ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700'
+              }`}
+            >
+              Wszystkie ({alerts.length})
+            </button>
+            {CATEGORY_OPTIONS.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategoryFilter(cat)}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-semibold transition truncate max-w-[130px] ${
+                  selectedCategoryFilter === cat
+                    ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
+                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700'
+                }`}
+              >
+                {cat.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {searchQuery && (
+          <div className="text-xs text-brand-300 flex items-center gap-1.5 pt-1">
+            <Compass className="h-3.5 w-3.5 text-teal-400" />
+            <span>
+              Wyniki wyszukiwania dla „<strong>{searchQuery}</strong>”: Znaleziono{' '}
+              <strong>{filteredAlerts.length}</strong> komunikatów
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 3. LISTA ALERTÓW: AKTYWNE I ZARCHIWIZOWANE                               */}
+      {/* ========================================================================= */}
       <div className="space-y-8">
         {/* SEKCJA: Aktywne Komunikaty */}
         <section className="space-y-4">
@@ -374,7 +654,7 @@ export const DashboardAlertsPage: React.FC = () => {
               </h2>
             </div>
             <span className="text-xs text-red-400 font-semibold bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
-              Wymagają uwagi
+              Na żywo na mapie
             </span>
           </div>
 
@@ -386,8 +666,8 @@ export const DashboardAlertsPage: React.FC = () => {
           ) : activeAlerts.length === 0 ? (
             <div className="rounded-2xl bg-slate-800/40 p-8 text-center border border-slate-700/40">
               <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2 opacity-80" />
-              <p className="text-slate-300 font-medium">Brak aktywnych ostrzeżeń w Twojej gminie</p>
-              <p className="text-xs text-slate-500 mt-1">Użyj powyższego formularza, aby opublikować nowy alert.</p>
+              <p className="text-slate-300 font-medium">Brak aktywnych ostrzeżeń spełniających kryteria</p>
+              <p className="text-xs text-slate-500 mt-1">Zmień frazę wyszukiwania lub opublikuj nowy alert.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -402,19 +682,32 @@ export const DashboardAlertsPage: React.FC = () => {
                         <AlertTriangle className="h-3.5 w-3.5" />
                         {alert.category}
                       </span>
-                      {alert.municipality && (
-                        <span className="flex items-center gap-1 text-xs text-slate-300 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700">
-                          <MapPin className="h-3.5 w-3.5 text-brand-400" />
-                          {alert.municipality.name}
+
+                      {/* Rozbudowany badge lokalizacji (Miasto / Gmina / Powiat / Województwo) */}
+                      <span className="flex items-center gap-1 text-xs text-slate-200 bg-slate-900/90 px-3 py-1 rounded-xl border border-slate-700 font-medium">
+                        <MapPin className="h-3.5 w-3.5 text-brand-400 shrink-0" />
+                        <span>
+                          {alert.locationName ? (
+                            <>
+                              <strong>{alert.locationName}</strong>
+                              {alert.voivodeship && (
+                                <span className="text-slate-400 text-[11px] ml-1">
+                                  (woj. {alert.voivodeship})
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            alert.municipality?.name || 'Lokalizacja'
+                          )}
                         </span>
-                      )}
+                      </span>
                     </div>
 
                     <p className="text-base text-slate-100 font-semibold leading-relaxed">
                       {alert.content}
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 pt-2">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 pt-2 border-t border-slate-700/50">
                       <div className="flex items-center gap-1">
                         <Building className="h-3.5 w-3.5 text-slate-500" />
                         <span>{alert.author?.organization?.name || 'Organizacja'}</span>
@@ -423,28 +716,44 @@ export const DashboardAlertsPage: React.FC = () => {
                         <Clock className="h-3.5 w-3.5 text-slate-500" />
                         <time>{formatDate(alert.createdAt)}</time>
                       </div>
+                      {alert.county && (
+                        <div className="text-[11px] text-slate-500">
+                          {alert.county}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Duży czerwony przycisk ODWOŁAJ KOMUNIKAT */}
-                  {canDeactivateAlert(alert) && (
-                    <button
-                      onClick={() => handleDeactivate(alert.id)}
-                      disabled={actionLoadingId === alert.id}
-                      className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-sm py-3.5 px-4 shadow-lg shadow-red-600/30 hover:shadow-red-600/50 border border-red-400/30 tracking-wider uppercase transition transform active:scale-[0.98] disabled:opacity-50"
-                    >
-                      {actionLoadingId === alert.id ? (
-                        <>
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                          <span>Odwoływanie komunikatu...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Ban className="h-5 w-5" />
-                          <span>ODWOŁAJ KOMUNIKAT</span>
-                        </>
-                      )}
-                    </button>
+                  {/* Przyciski Akcji dla Aktywnego Alertu: Edytuj i ODWOŁAJ */}
+                  {canManageAlert(alert) && (
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(alert)}
+                        className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-2xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold transition shrink-0"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span>Edytuj</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleDeactivate(alert.id)}
+                        disabled={actionLoadingId === alert.id}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-sm py-3 px-4 shadow-lg shadow-red-600/30 hover:shadow-red-600/50 border border-red-400/30 tracking-wider uppercase transition transform active:scale-[0.98] disabled:opacity-50"
+                      >
+                        {actionLoadingId === alert.id ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                            <span>Odwoływanie...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Ban className="h-4 w-4" />
+                            <span>ODWOŁAJ KOMUNIKAT</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -452,7 +761,7 @@ export const DashboardAlertsPage: React.FC = () => {
           )}
         </section>
 
-        {/* SEKCJA: Zarchiwizowane Komunikaty */}
+        {/* SEKCJA: Zarchiwizowane Komunikaty z opcją WZNOWIENIA i EDYCJI */}
         <section className="space-y-4 pt-6">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2.5 text-slate-400">
@@ -462,42 +771,252 @@ export const DashboardAlertsPage: React.FC = () => {
               </h2>
             </div>
             <span className="text-xs text-slate-400 bg-slate-900/60 px-3 py-1 rounded-full border border-slate-700/50">
-              Nieaktywne
+              Historia
             </span>
           </div>
 
           {archivedAlerts.length === 0 ? (
             <div className="rounded-2xl bg-slate-800/20 p-6 text-center border border-slate-800 text-xs text-slate-500">
-              Brak zarchiwizowanych alertów w historii.
+              Brak zarchiwizowanych alertów spełniających kryteria.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {archivedAlerts.map((alert) => (
                 <div
                   key={alert.id}
-                  className="rounded-2xl bg-slate-850/50 p-5 border border-slate-850 opacity-75 hover:opacity-100 transition space-y-3"
+                  className="rounded-2xl bg-slate-850/50 p-5 border border-slate-800 opacity-80 hover:opacity-100 transition space-y-4 flex flex-col justify-between"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="rounded-lg bg-slate-800 px-2.5 py-1 text-xs text-slate-400 font-medium">
-                      {alert.category}
-                    </span>
-                    <span className="text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      ✓ Odwołany
-                    </span>
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="rounded-lg bg-slate-800 px-2.5 py-1 text-xs text-slate-400 font-medium">
+                        {alert.category}
+                      </span>
+                      <span className="text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        ✓ Zarchiwizowany
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-slate-300 leading-snug">{alert.content}</p>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+                      <span>
+                        {alert.locationName || alert.municipality?.name} •{' '}
+                        {alert.author?.organization?.name || 'Organizacja'}
+                      </span>
+                      <time>{formatDate(alert.createdAt)}</time>
+                    </div>
                   </div>
 
-                  <p className="text-sm text-slate-300 line-clamp-2">{alert.content}</p>
+                  {/* Przyciski: WZNÓW KOMUNIKAT oraz Edytuj */}
+                  {canManageAlert(alert) && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800/60">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(alert)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span>Edytuj</span>
+                      </button>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
-                    <span>{alert.author?.organization?.name || 'Organizacja'}</span>
-                    <time>{formatDate(alert.createdAt)}</time>
-                  </div>
+                      <button
+                        onClick={() => handleReactivate(alert.id)}
+                        disabled={actionLoadingId === alert.id}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs py-2 px-3 shadow-md shadow-emerald-600/20 transition transform active:scale-95 disabled:opacity-50"
+                      >
+                        {actionLoadingId === alert.id ? (
+                          <>
+                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                            <span>Wznawianie...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            <span>WZNÓW KOMUNIKAT</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </section>
       </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL EDYCJI ALERTU Z MAPĄ I GEOLOKALIZACJĄ                               */}
+      {/* ========================================================================= */}
+      {editingAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-xl rounded-3xl bg-slate-850 p-6 sm:p-8 shadow-2xl border border-slate-700 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-700 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                  <Pencil className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Edytuj Komunikat Kryzysowy</h3>
+                  <p className="text-xs text-slate-400">
+                    Zaktualizuj treść, kategorię lub przesuń punkt zdarzenia na mapie
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingAlert(null)}
+                className="rounded-xl p-2 text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Kategoria
+                </label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2 px-3 text-white text-xs focus:border-brand-500 focus:outline-none"
+                >
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Treść komunikatu
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full rounded-xl bg-slate-900 border border-slate-700 p-3 text-white text-xs focus:border-brand-500 focus:outline-none resize-none"
+                ></textarea>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                    Miasto / Wieś
+                  </label>
+                  <input
+                    type="text"
+                    value={editLocationName}
+                    onChange={(e) => setEditLocationName(e.target.value)}
+                    placeholder="np. Warszawa"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-1.5 px-2.5 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                    Powiat
+                  </label>
+                  <input
+                    type="text"
+                    value={editCounty}
+                    onChange={(e) => setEditCounty(e.target.value)}
+                    placeholder="np. kłodzki"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-1.5 px-2.5 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                    Województwo
+                  </label>
+                  <input
+                    type="text"
+                    value={editVoivodeship}
+                    onChange={(e) => setEditVoivodeship(e.target.value)}
+                    placeholder="np. mazowieckie"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-1.5 px-2.5 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-brand-400" />
+                  <span>Zmień lokalizację punktu na mapie</span>
+                </label>
+                <LocationPickerMap
+                  lat={editLat ? parseFloat(editLat) : null}
+                  lng={editLng ? parseFloat(editLng) : null}
+                  height="160px"
+                  onChange={(newLat, newLng, details?: LocationDetails) => {
+                    setEditLat(String(newLat));
+                    setEditLng(String(newLng));
+                    if (details) {
+                      if (details.locationName) setEditLocationName(details.locationName);
+                      if (details.county) setEditCounty(details.county);
+                      if (details.voivodeship) setEditVoivodeship(details.voivodeship);
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">Lat</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editLat}
+                    onChange={(e) => setEditLat(e.target.value)}
+                    placeholder="np. 50.4380"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-1.5 px-3 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1">Lng</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editLng}
+                    onChange={(e) => setEditLng(e.target.value)}
+                    placeholder="np. 16.6548"
+                    className="w-full rounded-xl bg-slate-900 border border-slate-700 py-1.5 px-3 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setEditingAlert(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit || !editContent.trim()}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-teal-500 hover:from-brand-500 hover:to-teal-400 text-white text-xs font-bold shadow-lg shadow-brand-500/25 transition disabled:opacity-50"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      <span>Zapisywanie...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-3.5 w-3.5" />
+                      <span>Zapisz zmiany</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
