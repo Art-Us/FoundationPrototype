@@ -143,6 +143,8 @@ export const seedDatabase = async () => {
       isActive: true,
       authorId: koordKlodzko.id,
       municipalityId: klodzko.id,
+      lat: 50.4380,
+      lng: 16.6548,
     });
 
     await Alert.create({
@@ -151,6 +153,8 @@ export const seedDatabase = async () => {
       isActive: true,
       authorId: admin.id,
       municipalityId: klodzko.id,
+      lat: 50.4420,
+      lng: 16.6620,
     });
 
     await Alert.create({
@@ -159,6 +163,8 @@ export const seedDatabase = async () => {
       isActive: true,
       authorId: koordKlodzko.id,
       municipalityId: ladek.id,
+      lat: 50.3478,
+      lng: 16.8778,
     });
 
     await Alert.create({
@@ -167,6 +173,8 @@ export const seedDatabase = async () => {
       isActive: false, // nieaktywny
       authorId: koordNysa.id,
       municipalityId: nysa.id,
+      lat: 50.4738,
+      lng: 17.3344,
     });
 
     console.log('✅ Utworzono przykładowe komunikaty i alerty.');

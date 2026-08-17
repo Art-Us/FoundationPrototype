@@ -8,6 +8,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { PendingVerificationPage } from './pages/PendingVerificationPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { DashboardAlertsPage } from './pages/DashboardAlertsPage';
 import { PublicAlertsPage } from './pages/PublicAlertsPage';
 
 export const App: React.FC = () => {
@@ -24,12 +25,20 @@ export const App: React.FC = () => {
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/pending" element={<PendingVerificationPage />} />
 
-              {/* Trasa chroniona dla zweryfikowanych użytkowników */}
+              {/* Trasy chronione dla zweryfikowanych użytkowników */}
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
                     <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/alerts"
+                element={
+                  <ProtectedRoute>
+                    <DashboardAlertsPage />
                   </ProtectedRoute>
                 }
               />

@@ -41,13 +41,22 @@ export const Navbar: React.FC = () => {
           </Link>
 
           {isAuthenticated && user?.isVerified && (
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-lg transition"
-            >
-              <LayoutDashboard className="h-4 w-4 text-teal-400" />
-              <span>Pulpit</span>
-            </Link>
+            <>
+              <Link
+                to="/dashboard"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-lg transition"
+              >
+                <LayoutDashboard className="h-4 w-4 text-teal-400" />
+                <span>Pulpit</span>
+              </Link>
+              <Link
+                to="/dashboard/alerts"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-lg transition"
+              >
+                <Bell className="h-4 w-4 text-red-400" />
+                <span className="hidden sm:inline">Moje Alerty</span>
+              </Link>
+            </>
           )}
 
           {isAuthenticated && user?.role === 'admin' && (

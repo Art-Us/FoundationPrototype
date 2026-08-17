@@ -98,6 +98,69 @@ export const getAlertsByMunicipality = async (
 };
 
 /**
+ * @desc    Pobiera wszystkie alerty dla gminy zalogowanego użytkownika
+ * @route   GET /api/alerts/my-municipality
+ * @access  Private (wymaga protect)
+ */
+export const getMyMunicipalityAlerts = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    let municipalityId = req.query.municipalityId as string;
+
+    if (!municipalityId && req.user?.organizationId) {
+      const userOrg = await Organization.findByPk(req.user.organizationId);
+      if (userOrg) {
+        municipalityId = userOrg.municipalityId;
+      }
+    }
+
+    const whereClause: any = {};
+    if (municipalityId) {
+      whereClause.municipalityId = municipalityId;
+    }
+
+    const alerts = await Alert.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'role'],
+          include: [
+            {
+              model: Organization,
+              as: 'organization',
+              attributes: ['id', 'name', 'type'],
+            },
+          ],
+        },
+        {
+          model: Municipality,
+          as: 'municipality',
+          attributes: ['id', 'name'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    res.status(200).json({
+      success: true,
+      count: alerts.length,
+      municipalityId,
+      data: alerts,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas pobierania alertów dla Twojej gminy.',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * @desc    Tworzy nowy alert
  * @route   POST /api/alerts
  * @access  Private (wymaga protect)
@@ -107,7 +170,7 @@ export const createAlert = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { content, category, municipality, municipalityId } = req.body;
+    const { content, category, municipality, municipalityId, lat, lng } = req.body;
 
     if (!content || !category) {
       res.status(400).json({
@@ -141,6 +204,8 @@ export const createAlert = async (
       municipalityId: targetMunicipalityId,
       authorId: req.user!.id,
       isActive: true,
+      lat: lat ? parseFloat(lat) : null,
+      lng: lng ? parseFloat(lng) : null,
     });
 
     const populatedAlert = await Alert.findByPk(alert.id, {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
+import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
 import {
   Radio,
   MapPin,
@@ -16,39 +17,21 @@ import {
   Truck,
   HeartHandshake,
   AlertOctagon,
+  Map as MapIcon,
+  LayoutGrid,
+  Columns,
 } from 'lucide-react';
 
-interface AlertItem {
-  id: string;
-  content: string;
-  category: string;
-  isActive: boolean;
-  author?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    organization?: {
-      id: string;
-      name: string;
-      type: 'samorzad' | 'sluzby' | 'ngo';
-    };
-  };
-  municipality?: {
-    id: string;
-    name: string;
-  };
-  createdAt: string;
-  updatedAt?: string;
-}
+type ViewMode = 'split' | 'grid' | 'map';
 
 export const PublicAlertsPage: React.FC = () => {
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [alerts, setAlerts] = useState<AlertMapItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('split');
 
   const fetchAlerts = async () => {
     setIsLoading(true);
@@ -106,7 +89,6 @@ export const PublicAlertsPage: React.FC = () => {
     });
   }, [alerts, searchQuery, selectedCategory, selectedMunicipality]);
 
-  // Formatowanie daty po polsku
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -122,7 +104,6 @@ export const PublicAlertsPage: React.FC = () => {
     }
   };
 
-  // Dobór ikony i koloru kategorii
   const getCategoryBadge = (category: string) => {
     const lower = category.toLowerCase();
     if (lower.includes('hydro') || lower.includes('powód') || lower.includes('woda')) {
@@ -149,7 +130,6 @@ export const PublicAlertsPage: React.FC = () => {
     };
   };
 
-  // Typ organizacji badge
   const getOrgTypeBadge = (type?: string) => {
     switch (type) {
       case 'sluzby':
@@ -187,11 +167,11 @@ export const PublicAlertsPage: React.FC = () => {
             </h1>
 
             <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Oficjalna tablica ostrzeżeń, komunikatów operacyjnych i punktów pomocy humanitarnej publikowanych w czasie rzeczywistym przez samorządy, PSP, OSP oraz organizacje pozarządowe.
+              Oficjalna interaktywna mapa i tablica ostrzeżeń, komunikatów operacyjnych oraz punktów pomocy publikowanych przez służby ratunkowe (PSP, OSP, Samorządy, NGO).
             </p>
           </div>
 
-          {/* Numery Alarmowe (Szybki kontakt) */}
+          {/* Numery Alarmowe */}
           <div className="rounded-2xl bg-slate-900/80 p-4 border border-slate-700/80 shadow-lg shrink-0 flex flex-col gap-2.5">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               <PhoneCall className="h-4 w-4 text-brand-400" />
@@ -221,9 +201,9 @@ export const PublicAlertsPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 2. Pasek wyszukiwania i filtrów */}
+      {/* 2. Pasek wyszukiwania, filtrów oraz przełącznika widoków */}
       <section className="rounded-2xl bg-slate-800/60 p-4 border border-slate-700/50 backdrop-blur-md space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           {/* Wyszukiwarka */}
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -238,7 +218,7 @@ export const PublicAlertsPage: React.FC = () => {
 
           {/* Filtr Gmin */}
           {municipalities.length > 0 && (
-            <div className="sm:w-48">
+            <div className="md:w-48">
               <select
                 value={selectedMunicipality}
                 onChange={(e) => setSelectedMunicipality(e.target.value)}
@@ -253,6 +233,48 @@ export const PublicAlertsPage: React.FC = () => {
               </select>
             </div>
           )}
+
+          {/* Przełącznik widoku (Mapa / Lista / Dzielony) */}
+          <div className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-700/80 shrink-0">
+            <button
+              onClick={() => setViewMode('split')}
+              title="Widok łączony (Mapa + Lista)"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                viewMode === 'split'
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Columns className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Podzielony</span>
+            </button>
+
+            <button
+              onClick={() => setViewMode('map')}
+              title="Widok Mapy Leaflet"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                viewMode === 'map'
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <MapIcon className="h-3.5 w-3.5" />
+              <span>Mapa</span>
+            </button>
+
+            <button
+              onClick={() => setViewMode('grid')}
+              title="Widok Kart"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                viewMode === 'grid'
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span>Karty</span>
+            </button>
+          </div>
 
           {/* Przycisk odświeżenia */}
           <button
@@ -344,111 +366,131 @@ export const PublicAlertsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 5. Stan pusty */}
-      {!isLoading && !error && filteredAlerts.length === 0 && (
-        <div className="rounded-3xl bg-slate-800/40 p-12 text-center border border-slate-700/40 max-w-md mx-auto space-y-4">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">
-            <ShieldCheck className="h-7 w-7" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-white">Brak aktywnych ostrzeżeń</h3>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              {searchQuery || selectedCategory !== 'all' || selectedMunicipality !== 'all'
-                ? 'Żaden alert nie pasuje do wybranych kryteriów wyszukiwania.'
-                : 'Wszystkie jednostki ratunkowe raportują brak bezpośrednich zagrożeń kryzysowych.'}
-            </p>
-          </div>
-          {(searchQuery || selectedCategory !== 'all' || selectedMunicipality !== 'all') && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('all');
-                setSelectedMunicipality('all');
-              }}
-              className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition"
-            >
-              Wyczyść filtry
-            </button>
+      {/* 5. Główna treść z Mapą Leaflet i/lub Kartami */}
+      {!isLoading && !error && (
+        <div className="space-y-6">
+          {/* Widok Mapy (gdy 'split' lub 'map') */}
+          {(viewMode === 'split' || viewMode === 'map') && (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-bold text-white">
+                  <MapIcon className="h-4 w-4 text-brand-400" />
+                  <span>Interaktywna Mapa Zagrożeń Leaflet JS</span>
+                </div>
+                <span className="text-xs text-slate-400">
+                  Kliknij punkt na mapie, aby zobaczyć szczegóły
+                </span>
+              </div>
+
+              <AlertsMap
+                alerts={filteredAlerts}
+                height={viewMode === 'map' ? '600px' : '440px'}
+              />
+            </section>
           )}
-        </div>
-      )}
 
-      {/* 6. Karty alertów */}
-      {!isLoading && !error && filteredAlerts.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredAlerts.map((alert) => {
-            const categoryBadge = getCategoryBadge(alert.category);
-            const orgName = alert.author?.organization?.name || 'Służby Ratunkowe';
-            const orgType = alert.author?.organization?.type;
-            const municipalityName = alert.municipality?.name || 'Gmina nieokreślona';
-            const authorName = alert.author
-              ? `${alert.author.firstName} ${alert.author.lastName}`
-              : null;
+          {/* Widok Kart (gdy 'split' lub 'grid') */}
+          {(viewMode === 'split' || viewMode === 'grid') && (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-sm font-bold text-white">
+                  Lista aktywnych komunikatów ({filteredAlerts.length})
+                </span>
+              </div>
 
-            return (
-              <article
-                key={alert.id}
-                className="group relative flex flex-col justify-between rounded-3xl bg-slate-800/85 p-6 sm:p-7 shadow-xl backdrop-blur-xl border border-slate-700/60 hover:border-brand-500/50 hover:shadow-2xl hover:shadow-brand-500/5 transition duration-300"
-              >
-                {/* Górna belka karty: Kategoria & Gmina */}
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    {/* Kategoria */}
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
-                    >
-                      {categoryBadge.icon}
-                      <span>{alert.category}</span>
-                    </span>
-
-                    {/* Gmina */}
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold">
-                      <MapPin className="h-3.5 w-3.5 shrink-0" />
-                      <span>{municipalityName}</span>
-                    </span>
+              {filteredAlerts.length === 0 ? (
+                <div className="rounded-3xl bg-slate-800/40 p-12 text-center border border-slate-700/40 max-w-md mx-auto space-y-4">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">
+                    <ShieldCheck className="h-7 w-7" />
                   </div>
-
-                  {/* Treść alertu */}
-                  <p className="text-base sm:text-lg text-slate-100 font-medium leading-relaxed">
-                    {alert.content}
-                  </p>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Brak aktywnych ostrzeżeń</h3>
+                    <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                      {searchQuery || selectedCategory !== 'all' || selectedMunicipality !== 'all'
+                        ? 'Żaden alert nie pasuje do wybranych kryteriów wyszukiwania.'
+                        : 'Wszystkie jednostki ratunkowe raportują brak bezpośrednich zagrożeń kryzysowych.'}
+                    </p>
+                  </div>
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredAlerts.map((alert) => {
+                    const categoryBadge = getCategoryBadge(alert.category);
+                    const orgName = alert.author?.organization?.name || 'Służby Ratunkowe';
+                    const orgType = alert.author?.organization?.type;
+                    const municipalityName = alert.municipality?.name || 'Gmina nieokreślona';
+                    const authorName = alert.author
+                      ? `${alert.author.firstName} ${alert.author.lastName}`
+                      : null;
 
-                {/* Dolna belka karty: Organizacja, Autor, Data */}
-                <div className="mt-6 pt-4 border-t border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
-                  {/* Organizacja & Autor */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
-                      <Building className="h-3.5 w-3.5 text-brand-400 shrink-0" />
-                      <span>{orgName}</span>
-                    </div>
-
-                    {orgType && (
-                      <span
-                        className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase border ${getOrgTypeBadge(
-                          orgType
-                        )}`}
+                    return (
+                      <article
+                        key={alert.id}
+                        className="group relative flex flex-col justify-between rounded-3xl bg-slate-800/85 p-6 sm:p-7 shadow-xl backdrop-blur-xl border border-slate-700/60 hover:border-brand-500/50 hover:shadow-2xl hover:shadow-brand-500/5 transition duration-300"
                       >
-                        {orgType}
-                      </span>
-                    )}
+                        {/* Górna belka karty: Kategoria & Gmina */}
+                        <div className="space-y-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            {/* Kategoria */}
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
+                            >
+                              {categoryBadge.icon}
+                              <span>{alert.category}</span>
+                            </span>
 
-                    {authorName && (
-                      <span className="hidden lg:inline-flex items-center gap-1 text-slate-400 text-[11px]">
-                        • <User className="h-3 w-3" /> {authorName}
-                      </span>
-                    )}
-                  </div>
+                            {/* Gmina */}
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold">
+                              <MapPin className="h-3.5 w-3.5 shrink-0" />
+                              <span>{municipalityName}</span>
+                            </span>
+                          </div>
 
-                  {/* Data dodania */}
-                  <div className="flex items-center gap-1.5 text-slate-400 shrink-0 font-medium">
-                    <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                    <time dateTime={alert.createdAt}>{formatDate(alert.createdAt)}</time>
-                  </div>
+                          {/* Treść alertu */}
+                          <p className="text-base sm:text-lg text-slate-100 font-medium leading-relaxed">
+                            {alert.content}
+                          </p>
+                        </div>
+
+                        {/* Dolna belka karty: Organizacja, Autor, Data */}
+                        <div className="mt-6 pt-4 border-t border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
+                          {/* Organizacja & Autor */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+                              <Building className="h-3.5 w-3.5 text-brand-400 shrink-0" />
+                              <span>{orgName}</span>
+                            </div>
+
+                            {orgType && (
+                              <span
+                                className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase border ${getOrgTypeBadge(
+                                  orgType
+                                )}`}
+                              >
+                                {orgType}
+                              </span>
+                            )}
+
+                            {authorName && (
+                              <span className="hidden lg:inline-flex items-center gap-1 text-slate-400 text-[11px]">
+                                • <User className="h-3 w-3" /> {authorName}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Data dodania */}
+                          <div className="flex items-center gap-1.5 text-slate-400 shrink-0 font-medium">
+                            <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                            <time dateTime={alert.createdAt}>{formatDate(alert.createdAt)}</time>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
-              </article>
-            );
-          })}
+              )}
+            </section>
+          )}
         </div>
       )}
     </div>

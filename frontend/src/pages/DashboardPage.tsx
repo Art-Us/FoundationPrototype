@@ -27,18 +27,18 @@ export const DashboardPage: React.FC = () => {
       {/* Skróty do modułów */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Link
-          to="/"
+          to="/dashboard/alerts"
           className="group rounded-2xl bg-slate-800/80 p-6 border border-slate-700/60 hover:border-brand-500/50 hover:bg-slate-800 transition shadow-xl"
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 mb-4 group-hover:scale-110 transition">
             <Bell className="h-6 w-6" />
           </div>
           <h3 className="text-lg font-bold text-white group-hover:text-brand-400 transition flex items-center justify-between">
-            <span>Centrum Alertów</span>
+            <span>Zarządzaj Alertami</span>
             <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition" />
           </h3>
           <p className="text-xs text-slate-400 mt-2">
-            Przeglądaj aktywne ostrzeżenia i komunikaty kryzysowe dla poszczególnych gmin.
+            Publikuj nowe ostrzeżenia kryzysowe oraz monitoruj i odwołuj aktywne alerty w Twojej gminie.
           </p>
         </Link>
 
