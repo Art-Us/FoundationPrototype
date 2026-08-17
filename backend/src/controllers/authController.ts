@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { User, IUser } from '../models/User';
+import { User } from '../models';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default_jwt_secret_key_change_in_production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
@@ -13,10 +13,11 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
  */
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { firstName, lastName, email, password, phone, organization, role } = req.body;
+    const { firstName, lastName, email, password, phone, organization, organizationId, role } = req.body;
+    const targetOrgId = organizationId || organization;
 
     // Walidacja obecności wymaganych pól
-    if (!firstName || !lastName || !email || !password || !phone || !organization) {
+    if (!firstName || !lastName || !email || !password || !phone || !targetOrgId) {
       res.status(400).json({
         success: false,
         message: 'Wszystkie wymagane pola muszą zostać wypełnione.',
@@ -25,7 +26,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Sprawdzenie, czy użytkownik o danym emailu już istnieje
-    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    const existingUser = await User.findOne({
+      where: { email: email.toLowerCase().trim() },
+    });
+
     if (existingUser) {
       res.status(409).json({
         success: false,
@@ -45,7 +49,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       phone,
-      organization,
+      organizationId: targetOrgId,
       role: role || 'czlonek',
       isVerified: false,
     });
@@ -55,13 +59,13 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       success: true,
       message: 'Rejestracja zakończona sukcesem. Twoje konto oczekuje na weryfikację przez administratora.',
       user: {
-        id: newUser._id,
+        id: newUser.id,
         firstName: newUser.firstName,
         lastName: newUser.lastName,
         email: newUser.email,
         phone: newUser.phone,
         role: newUser.role,
-        organization: newUser.organization,
+        organizationId: newUser.organizationId,
         isVerified: newUser.isVerified,
         createdAt: newUser.createdAt,
       },
@@ -94,7 +98,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Sprawdzenie, czy użytkownik istnieje
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const user = await User.findOne({
+      where: { email: email.toLowerCase().trim() },
+    });
+
     if (!user) {
       res.status(401).json({
         success: false,
@@ -116,12 +123,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Generowanie tokenu JWT
     const token = jwt.sign(
       {
-        id: user._id,
+        id: user.id,
         email: user.email,
         role: user.role,
       },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      JWT_SECRET as jwt.Secret,
+      { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
     );
 
     // Zwrócenie tokenu oraz danych użytkownika
@@ -129,13 +136,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       success: true,
       token,
       user: {
-        id: user._id,
+        id: user.id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
         phone: user.phone,
         role: user.role,
-        organization: user.organization,
+        organizationId: user.organizationId,
         isVerified: user.isVerified,
       },
     });

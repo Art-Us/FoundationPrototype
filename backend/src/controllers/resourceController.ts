@@ -1,6 +1,5 @@
 import { Response } from 'express';
-import { Resource, RESOURCE_TYPES, RESOURCE_TIMEFRAMES } from '../models/Resource';
-import { Organization } from '../models/Organization';
+import { Resource, Organization, RESOURCE_TYPES, RESOURCE_TIMEFRAMES } from '../models';
 import { AuthenticatedRequest } from '../middleware/protect';
 
 /**
@@ -15,20 +14,28 @@ export const getResourcesByMunicipality = async (
   try {
     const { id: municipalityId } = req.params;
 
-    // 1. Znalezienie wszystkich organizacji w danej gminie
-    const organizations = await Organization.find({ municipality: municipalityId });
-    const organizationIds = organizations.map((org) => org._id);
+    // 1. Znalezienie organizacji należących do danej gminy
+    const organizations = await Organization.findAll({
+      where: { municipalityId },
+      attributes: ['id'],
+    });
+    const organizationIds = organizations.map((org) => org.id);
 
-    // 2. Pobranie aktywnych zasobów należących do tych organizacji
-    const resources = await Resource.find({
-      organization: { $in: organizationIds },
-      isActive: true,
-    })
-      .populate({
-        path: 'organization',
-        select: 'name type municipality',
-      })
-      .sort({ createdAt: -1 });
+    // 2. Pobranie aktywnych zasobów tych organizacji
+    const resources = await Resource.findAll({
+      where: {
+        organizationId: organizationIds,
+        isActive: true,
+      },
+      include: [
+        {
+          model: Organization,
+          as: 'organization',
+          attributes: ['id', 'name', 'type', 'municipalityId'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
 
     // 3. Inicjalizacja struktury macierzy zasobów (Typ zasobu x Horyzont czasowy)
     const matrix: Record<string, Record<string, number>> = {};
@@ -72,7 +79,7 @@ export const createResource = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { type, quantity, timeframe, organization } = req.body;
+    const { type, quantity, timeframe, organization, organizationId } = req.body;
 
     if (!type || quantity === undefined || !timeframe) {
       res.status(400).json({
@@ -82,28 +89,32 @@ export const createResource = async (
       return;
     }
 
-    // Jeśli organizacja nie została podana, użyj organizacji zalogowanego użytkownika
-    const targetOrganization = organization || req.user?.organization;
+    const targetOrganizationId = organizationId || organization || req.user?.organizationId;
 
-    if (!targetOrganization) {
+    if (!targetOrganizationId) {
       res.status(400).json({
         success: false,
-        message: 'Przypisanie do organizacji (organization) jest wymagane.',
+        message: 'Przypisanie do organizacji (organizationId) jest wymagane.',
       });
       return;
     }
 
     const newResource = await Resource.create({
-      organization: targetOrganization,
+      organizationId: targetOrganizationId,
       type,
       quantity,
       timeframe,
       isActive: true,
     });
 
-    const populatedResource = await Resource.findById(newResource._id).populate({
-      path: 'organization',
-      select: 'name type municipality',
+    const populatedResource = await Resource.findByPk(newResource.id, {
+      include: [
+        {
+          model: Organization,
+          as: 'organization',
+          attributes: ['id', 'name', 'type', 'municipalityId'],
+        },
+      ],
     });
 
     res.status(201).json({

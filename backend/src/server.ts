@@ -1,16 +1,19 @@
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import app from './app';
+import { sequelize } from './models';
 
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/fundacjaq';
 
 const startServer = async () => {
   try {
-    await mongoose.connect(MONGO_URI);
-    console.log('✅ Połączono z bazą danych MongoDB');
+    // Synchronizacja bazy SQLite i modeli
+    await sequelize.authenticate();
+    console.log('✅ Połączono z bazą danych SQLite');
+
+    await sequelize.sync({ alter: true });
+    console.log('✅ Zsynchronizowano tabele bazy danych SQLite');
 
     app.listen(PORT, () => {
       console.log(`🚀 Serwer uruchomiony na porcie: ${PORT}`);

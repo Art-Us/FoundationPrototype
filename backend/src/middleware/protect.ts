@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { User, IUser } from '../models/User';
+import { User } from '../models';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default_jwt_secret_key_change_in_production';
 
 export interface AuthenticatedRequest extends Request {
-  user?: IUser;
+  user?: User;
 }
 
 interface JwtPayload {
@@ -46,8 +46,11 @@ export const protect = async (
     // 2. Weryfikacja tokenu JWT
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
-    // 3. Pobranie użytkownika z bazy danych
-    const user = await User.findById(decoded.id).select('-password');
+    // 3. Pobranie użytkownika z bazy SQLite
+    const user = await User.findByPk(decoded.id, {
+      attributes: { exclude: ['password'] },
+    });
+
     if (!user) {
       res.status(401).json({
         success: false,

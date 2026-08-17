@@ -1,26 +1,47 @@
-import mongoose, { Document, Schema, Model } from 'mongoose';
+import { Model, DataTypes, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
-export interface IMunicipality extends Document {
+export interface MunicipalityAttributes {
+  id: string;
   name: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const MunicipalitySchema = new Schema<IMunicipality>(
+export interface MunicipalityCreationAttributes
+  extends Optional<MunicipalityAttributes, 'id' | 'createdAt' | 'updatedAt'> {}
+
+export class Municipality
+  extends Model<MunicipalityAttributes, MunicipalityCreationAttributes>
+  implements MunicipalityAttributes
+{
+  declare id: string;
+  declare name: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
+}
+
+Municipality.init(
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     name: {
-      type: String,
-      required: [true, 'Nazwa gminy jest wymagana'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
       unique: true,
+      validate: {
+        notEmpty: { msg: 'Nazwa gminy jest wymagana' },
+      },
     },
   },
   {
+    sequelize,
+    tableName: 'municipalities',
     timestamps: true,
   }
 );
-
-export const Municipality: Model<IMunicipality> =
-  mongoose.models.Municipality || mongoose.model<IMunicipality>('Municipality', MunicipalitySchema);
 
 export default Municipality;

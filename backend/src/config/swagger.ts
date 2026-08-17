@@ -1,5 +1,5 @@
 import swaggerUi from 'swagger-ui-express';
-import { Express } from 'express';
+import { Application } from 'express';
 
 export const swaggerSpec = {
   openapi: '3.0.0',
@@ -316,7 +316,7 @@ export const swaggerSpec = {
 /**
  * Konfiguruje Swagger UI na ścieżce /api-docs
  */
-export const setupSwagger = (app: Express): void => {
+export const setupSwagger = (app: Application): void => {
   app.use(
     '/api-docs',
     swaggerUi.serve,

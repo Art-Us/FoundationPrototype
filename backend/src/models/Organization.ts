@@ -1,45 +1,71 @@
-import mongoose, { Document, Schema, Model, Types } from 'mongoose';
+import { Model, DataTypes, Optional } from 'sequelize';
+import { sequelize } from '../config/database';
 
 export type OrganizationType = 'samorzad' | 'sluzby' | 'ngo';
-
 export const ORGANIZATION_TYPES: OrganizationType[] = ['samorzad', 'sluzby', 'ngo'];
 
-export interface IOrganization extends Document {
+export interface OrganizationAttributes {
+  id: string;
   name: string;
   type: OrganizationType;
-  municipality: Types.ObjectId;
-  createdAt: Date;
-  updatedAt: Date;
+  municipalityId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-const OrganizationSchema = new Schema<IOrganization>(
+export interface OrganizationCreationAttributes
+  extends Optional<OrganizationAttributes, 'id' | 'createdAt' | 'updatedAt'> {}
+
+export class Organization
+  extends Model<OrganizationAttributes, OrganizationCreationAttributes>
+  implements OrganizationAttributes
+{
+  declare id: string;
+  declare name: string;
+  declare type: OrganizationType;
+  declare municipalityId: string;
+  declare readonly createdAt: Date;
+  declare readonly updatedAt: Date;
+}
+
+Organization.init(
   {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
     name: {
-      type: String,
-      required: [true, 'Nazwa organizacji jest wymagana'],
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Nazwa organizacji jest wymagana' },
+      },
     },
     type: {
-      type: String,
-      enum: {
-        values: ORGANIZATION_TYPES,
-        message: 'Nieprawidłowy typ organizacji: {VALUE}',
+      type: DataTypes.ENUM('samorzad', 'sluzby', 'ngo'),
+      allowNull: false,
+      validate: {
+        isIn: {
+          args: [ORGANIZATION_TYPES],
+          msg: 'Nieprawidłowy typ organizacji',
+        },
       },
-      required: [true, 'Typ organizacji jest wymagany'],
     },
-    municipality: {
-      type: Schema.Types.ObjectId,
-      ref: 'Municipality',
-      required: [true, 'Przypisanie do gminy jest wymagane'],
-      index: true,
+    municipalityId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'municipalities',
+        key: 'id',
+      },
     },
   },
   {
+    sequelize,
+    tableName: 'organizations',
     timestamps: true,
   }
 );
-
-export const Organization: Model<IOrganization> =
-  mongoose.models.Organization || mongoose.model<IOrganization>('Organization', OrganizationSchema);
 
 export default Organization;
