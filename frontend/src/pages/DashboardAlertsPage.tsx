@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
@@ -41,8 +41,10 @@ const CATEGORY_OPTIONS = [
   'Informacja ogólna',
 ];
 
-type ArchiveTimeframe = '24h' | '48h' | '72h' | 'tydzien' | 'miesiac' | 'rok' | 'wszystkie' | 'custom';
-type ArchiveSortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'duration-desc' | 'duration-asc';
+type AlertTimeframe = '24h' | '48h' | '72h' | 'tydzien' | 'miesiac' | 'rok' | 'wszystkie' | 'custom';
+type AlertSortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'duration-desc' | 'duration-asc';
+type ArchiveTimeframe = AlertTimeframe;
+type ArchiveSortOption = AlertSortOption;
 
 export const DashboardAlertsPage: React.FC = () => {
   const { user } = useAuth();
@@ -63,14 +65,37 @@ export const DashboardAlertsPage: React.FC = () => {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(true);
 
-  // Filtry i wyszukiwanie w archiwum
+  // Stan fokusu na konkretnym alercie na mapie
+  const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<number>(0);
+  const mapSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleFocusOnMap = (alert: AlertMapItem) => {
+    setShowMap(true);
+    setFocusedAlertId(alert.id);
+    setFocusKey((k) => k + 1);
+    setTimeout(() => {
+      mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+  };
+
+  // Filtry, wyszukiwanie i sortowanie dla AKTYWNYCH komunikatów
+  const [activeSearchQuery, setActiveSearchQuery] = useState('');
+  const [activeTimeframe, setActiveTimeframe] = useState<AlertTimeframe>('wszystkie');
+  const [activeCustomStartDate, setActiveCustomStartDate] = useState('');
+  const [activeCustomEndDate, setActiveCustomEndDate] = useState('');
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
+  const [activeOrgFilter, setActiveOrgFilter] = useState<string>('all');
+  const [activeSort, setActiveSort] = useState<AlertSortOption>('date-desc');
+
+  // Filtry, wyszukiwanie i sortowanie dla ARCHIWUM komunikatów
   const [archiveSearchQuery, setArchiveSearchQuery] = useState('');
-  const [archiveTimeframe, setArchiveTimeframe] = useState<ArchiveTimeframe>('24h');
+  const [archiveTimeframe, setArchiveTimeframe] = useState<AlertTimeframe>('24h');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [archiveCategoryFilter, setArchiveCategoryFilter] = useState<string>('all');
   const [archiveOrgFilter, setArchiveOrgFilter] = useState<string>('all');
-  const [archiveSort, setArchiveSort] = useState<ArchiveSortOption>('date-desc');
+  const [archiveSort, setArchiveSort] = useState<AlertSortOption>('date-desc');
 
   // Modal historii cyklu życia
   const [selectedHistoryAlert, setSelectedHistoryAlert] = useState<AlertMapItem | null>(null);
@@ -153,11 +178,12 @@ export const DashboardAlertsPage: React.FC = () => {
         setVoivodeship('');
         setLat('');
         setLng('');
-        showToast('Nowy komunikat kryzysowy został pomyślnie opublikowany!');
+        showToast('Alert został pomyślnie opublikowany!');
       }
     } catch (error: any) {
+      console.error('Błąd dodawania alertu:', error);
       showToast(
-        error.response?.data?.message || 'Wystąpił błąd podczas publikowania alertu.',
+        error.response?.data?.message || 'Nie udało się opublikować alertu.',
         'error'
       );
     } finally {
@@ -165,30 +191,23 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
-  // 2. Obsługa odwoływania komunikatu
+  // 2. Obsługa odwołania alertu (dezaktywacja)
   const handleDeactivate = async (alertId: string) => {
-    const previousAlerts = [...alerts];
-
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === alertId ? { ...a, isActive: false } : a))
-    );
     setActionLoadingId(alertId);
-
     try {
-      const res = await api.patch(`/alerts/${alertId}/deactivate`);
+      const res = await api.patch(`/alerts/${alertId}/deactivate`, {
+        details: 'Odwołanie komunikatu z poziomu panelu operacyjnego',
+      });
       if (res.data.success && res.data.data) {
         setAlerts((prev) =>
           prev.map((a) => (a.id === alertId ? res.data.data : a))
         );
-        showToast('Komunikat został pomyślnie odwołany i przeniesiony do archiwum.');
-      } else {
-        setAlerts(previousAlerts);
-        showToast('Nie udało się odwołać alertu.', 'error');
+        showToast('Alert został pomyślnie odwołany i przeniesiony do archiwum.');
       }
     } catch (error: any) {
-      setAlerts(previousAlerts);
+      console.error('Błąd dezaktywacji alertu:', error);
       showToast(
-        error.response?.data?.message || 'Wystąpił błąd podczas odwoływania komunikatu.',
+        error.response?.data?.message || 'Nie udało się odwołać alertu.',
         'error'
       );
     } finally {
@@ -196,30 +215,23 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
-  // 3. Ponowne alertowanie (Wznowienie z archiwum)
+  // 3. Obsługa wznowienia alertu (reaktywacja)
   const handleReactivate = async (alertId: string) => {
-    const previousAlerts = [...alerts];
-
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === alertId ? { ...a, isActive: true } : a))
-    );
     setActionLoadingId(alertId);
-
     try {
-      const res = await api.patch(`/alerts/${alertId}/reactivate`);
+      const res = await api.patch(`/alerts/${alertId}/reactivate`, {
+        details: 'Wznowienie komunikatu z archiwum',
+      });
       if (res.data.success && res.data.data) {
         setAlerts((prev) =>
           prev.map((a) => (a.id === alertId ? res.data.data : a))
         );
-        showToast('Komunikat został pomyślnie wznowiony i ponownie opublikowany!');
-      } else {
-        setAlerts(previousAlerts);
-        showToast('Nie udało się wznowić alertu.', 'error');
+        showToast('Komunikat został wznowiony i powrócił na tablicę aktywną!');
       }
     } catch (error: any) {
-      setAlerts(previousAlerts);
+      console.error('Błąd reaktywacji alertu:', error);
       showToast(
-        error.response?.data?.message || 'Wystąpił błąd podczas wznawiania komunikatu.',
+        error.response?.data?.message || 'Nie udało się wznowić alertu.',
         'error'
       );
     } finally {
@@ -227,7 +239,7 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
-  // 4. Otwarcie modalu edycji
+  // 4. Obsługa otwierania modalu edycji
   const openEditModal = (alert: AlertMapItem) => {
     setEditingAlert(alert);
     setEditContent(alert.content);
@@ -235,11 +247,11 @@ export const DashboardAlertsPage: React.FC = () => {
     setEditLocationName(alert.locationName || '');
     setEditCounty(alert.county || '');
     setEditVoivodeship(alert.voivodeship || '');
-    setEditLat(alert.lat !== null && alert.lat !== undefined ? String(alert.lat) : '');
-    setEditLng(alert.lng !== null && alert.lng !== undefined ? String(alert.lng) : '');
+    setEditLat(alert.lat !== undefined && alert.lat !== null ? alert.lat.toString() : '');
+    setEditLng(alert.lng !== undefined && alert.lng !== null ? alert.lng.toString() : '');
   };
 
-  // 5. Zapisanie edycji alertu
+  // 5. Zapisywanie edycji alertu
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAlert || !editContent.trim()) return;
@@ -274,7 +286,20 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
-  // Unikalne organizacje do filtrów
+  // Unikalne organizacje do filtrów aktywnych
+  const availableActiveOrgs = useMemo(() => {
+    const map = new Map<string, string>();
+    alerts
+      .filter((a) => a.isActive)
+      .forEach((a) => {
+        if (a.author?.organization?.name) {
+          map.set(a.author.organization.name, a.author.organization.name);
+        }
+      });
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'pl'));
+  }, [alerts]);
+
+  // Unikalne organizacje do filtrów archiwum
   const availableArchiveOrgs = useMemo(() => {
     const map = new Map<string, string>();
     alerts
@@ -284,13 +309,123 @@ export const DashboardAlertsPage: React.FC = () => {
           map.set(a.author.organization.name, a.author.organization.name);
         }
       });
-    return Array.from(map.values()).sort();
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'pl'));
   }, [alerts]);
 
-  // Aktywne alerty
+  // Aktywne alerty z oddzielnym filtrowaniem, wyszukiwaniem i sortowaniem
   const activeAlerts = useMemo(() => {
-    return alerts.filter((a) => a.isActive);
-  }, [alerts]);
+    const rawActive = alerts.filter((a) => a.isActive);
+    const now = Date.now();
+    const oneHour = 3600 * 1000;
+    const oneDay = 24 * oneHour;
+
+    return rawActive
+      .filter((alert) => {
+        const alertTime = new Date(alert.createdAt).getTime();
+
+        if (activeTimeframe === '24h') {
+          if (now - alertTime > oneDay) return false;
+        } else if (activeTimeframe === '48h') {
+          if (now - alertTime > 2 * oneDay) return false;
+        } else if (activeTimeframe === '72h') {
+          if (now - alertTime > 3 * oneDay) return false;
+        } else if (activeTimeframe === 'tydzien') {
+          if (now - alertTime > 7 * oneDay) return false;
+        } else if (activeTimeframe === 'miesiac') {
+          if (now - alertTime > 30 * oneDay) return false;
+        } else if (activeTimeframe === 'rok') {
+          if (now - alertTime > 365 * oneDay) return false;
+        } else if (activeTimeframe === 'custom') {
+          if (activeCustomStartDate) {
+            const startMs = new Date(activeCustomStartDate).getTime();
+            if (alertTime < startMs) return false;
+          }
+          if (activeCustomEndDate) {
+            const endMs = new Date(activeCustomEndDate).getTime() + oneDay;
+            if (alertTime > endMs) return false;
+          }
+        }
+
+        if (
+          activeCategoryFilter !== 'all' &&
+          alert.category !== activeCategoryFilter
+        ) {
+          return false;
+        }
+
+        if (
+          activeOrgFilter !== 'all' &&
+          alert.author?.organization?.name !== activeOrgFilter
+        ) {
+          return false;
+        }
+
+        if (activeSearchQuery.trim()) {
+          const q = activeSearchQuery.toLowerCase().trim();
+          const matchContent = alert.content.toLowerCase().includes(q);
+          const matchCategory = alert.category.toLowerCase().includes(q);
+          const matchLocation = alert.locationName?.toLowerCase().includes(q);
+          const matchCounty = alert.county?.toLowerCase().includes(q);
+          const matchVoivodeship = alert.voivodeship?.toLowerCase().includes(q);
+          const matchMunicipality = alert.municipality?.name.toLowerCase().includes(q);
+          const matchOrg = alert.author?.organization?.name.toLowerCase().includes(q);
+          const matchAuthor = alert.author
+            ? `${alert.author.firstName} ${alert.author.lastName}`.toLowerCase().includes(q)
+            : false;
+
+          return (
+            matchContent ||
+            matchCategory ||
+            matchLocation ||
+            matchCounty ||
+            matchVoivodeship ||
+            matchMunicipality ||
+            matchOrg ||
+            matchAuthor
+          );
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (activeSort === 'date-desc') {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        if (activeSort === 'date-asc') {
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        }
+        if (activeSort === 'name-asc') {
+          const nameA = a.locationName || a.municipality?.name || a.content;
+          const nameB = b.locationName || b.municipality?.name || b.content;
+          return nameA.localeCompare(nameB, 'pl');
+        }
+        if (activeSort === 'name-desc') {
+          const nameA = a.locationName || a.municipality?.name || a.content;
+          const nameB = b.locationName || b.municipality?.name || b.content;
+          return nameB.localeCompare(nameA, 'pl');
+        }
+        if (activeSort === 'duration-desc') {
+          const durA = calculateAlertDurations(a).totalActiveMs;
+          const durB = calculateAlertDurations(b).totalActiveMs;
+          return durB - durA;
+        }
+        if (activeSort === 'duration-asc') {
+          const durA = calculateAlertDurations(a).totalActiveMs;
+          const durB = calculateAlertDurations(b).totalActiveMs;
+          return durA - durB;
+        }
+        return 0;
+      });
+  }, [
+    alerts,
+    activeSearchQuery,
+    activeTimeframe,
+    activeCustomStartDate,
+    activeCustomEndDate,
+    activeCategoryFilter,
+    activeOrgFilter,
+    activeSort,
+  ]);
 
   // Zarchiwizowane alerty z filtrowaniem czasowym
   const archivedAlerts = useMemo(() => {
@@ -492,14 +627,17 @@ export const DashboardAlertsPage: React.FC = () => {
 
       {/* Interaktywna Mapa Leaflet */}
       {showMap && (
-        <section className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs space-y-3">
+        <section
+          ref={mapSectionRef}
+          className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs space-y-3 scroll-mt-6"
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
               <MapPin className="h-4 w-4 text-red-500" />
               <span>Lokalizacja aktywnych zdarzeń na mapie ({activeAlerts.length})</span>
             </div>
             <span className="text-xs text-slate-400 hidden sm:inline">
-              Kliknij pinezkę, aby zobaczyć szczegóły lub odwołać komunikat
+              Kliknij pinezkę lub „Pokaż na mapie” na karcie, aby zobaczyć szczegóły
             </span>
           </div>
 
@@ -509,6 +647,8 @@ export const DashboardAlertsPage: React.FC = () => {
             onDeactivate={handleDeactivate}
             canDeactivate={canManageAlert}
             actionLoadingId={actionLoadingId}
+            focusedAlertId={focusedAlertId}
+            focusKey={focusKey}
           />
         </section>
       )}
@@ -698,16 +838,154 @@ export const DashboardAlertsPage: React.FC = () => {
           </span>
         </div>
 
+        {/* Panel Zaawansowanych Filtrów Aktywnych Komunikatów */}
+        <div className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs space-y-4">
+          {/* Horyzonty Czasowe dla Aktywnych */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-red-500" />
+              <span>Zakres Czasowy Aktywnych:</span>
+            </label>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { key: 'wszystkie', label: 'Wszystkie aktywne' },
+                { key: '24h', label: 'Ostatnie 24h' },
+                { key: '48h', label: '48h' },
+                { key: '72h', label: '72h' },
+                { key: 'tydzien', label: 'Tydzień' },
+                { key: 'miesiac', label: 'Miesiąc' },
+                { key: 'rok', label: 'Rok' },
+                { key: 'custom', label: '📅 Własny zakres' },
+              ].map((tf) => (
+                <button
+                  key={tf.key}
+                  type="button"
+                  onClick={() => setActiveTimeframe(tf.key as AlertTimeframe)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    activeTimeframe === tf.key
+                      ? 'bg-red-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                  }`}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Własny zakres dat dla aktywnych */}
+            {activeTimeframe === 'custom' && (
+              <div className="flex items-center gap-3 pt-2 flex-wrap text-xs bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <span className="text-slate-600 font-semibold">Od:</span>
+                <input
+                  type="date"
+                  value={activeCustomStartDate}
+                  onChange={(e) => setActiveCustomStartDate(e.target.value)}
+                  className="rounded-lg bg-white border border-slate-300 py-1 px-2.5 text-slate-900 font-semibold"
+                />
+                <span className="text-slate-600 font-semibold">Do:</span>
+                <input
+                  type="date"
+                  value={activeCustomEndDate}
+                  onChange={(e) => setActiveCustomEndDate(e.target.value)}
+                  className="rounded-lg bg-white border border-slate-300 py-1 px-2.5 text-slate-900 font-semibold"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Wyszukiwanie po całym tekście i selektory dla aktywnych */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-slate-100">
+            <div className="md:col-span-5 relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={activeSearchQuery}
+                onChange={(e) => setActiveSearchQuery(e.target.value)}
+                placeholder="Szukaj wśród aktywnych po treści, miejscu, autorze, organizacji..."
+                className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 pl-10 pr-10 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-red-500 focus:outline-none"
+              />
+              {activeSearchQuery && (
+                <button
+                  onClick={() => setActiveSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Filtr Kategorii */}
+            <div className="md:col-span-2">
+              <select
+                value={activeCategoryFilter}
+                onChange={(e) => setActiveCategoryFilter(e.target.value)}
+                className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs text-slate-800 font-semibold focus:bg-white focus:border-red-500 focus:outline-none"
+              >
+                <option value="all">Wszystkie typy</option>
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtr Organizacji */}
+            <div className="md:col-span-2">
+              <select
+                value={activeOrgFilter}
+                onChange={(e) => setActiveOrgFilter(e.target.value)}
+                className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs text-slate-800 font-semibold focus:bg-white focus:border-red-500 focus:outline-none"
+              >
+                <option value="all">Wszystkie organizacje</option>
+                {availableActiveOrgs.map((org) => (
+                  <option key={org} value={org}>
+                    {org}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sortowanie */}
+            <div className="md:col-span-3">
+              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+                <ArrowUpDown className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                <select
+                  value={activeSort}
+                  onChange={(e) => setActiveSort(e.target.value as AlertSortOption)}
+                  className="bg-transparent text-xs text-slate-800 font-semibold focus:outline-none w-full"
+                >
+                  <option value="date-desc">Data: Od najnowszych</option>
+                  <option value="date-asc">Data: Od najstarszych</option>
+                  <option value="name-asc">Lokalizacja: A - Z</option>
+                  <option value="name-desc">Lokalizacja: Z - A</option>
+                  <option value="duration-desc">Czas aktywności: Najdłuższy</option>
+                  <option value="duration-asc">Czas aktywności: Najkrótszy</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="py-12 text-center text-slate-400">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent mb-2"></div>
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-red-500 border-t-transparent mb-2"></div>
             <p className="text-xs">Ładowanie alertów...</p>
           </div>
         ) : activeAlerts.length === 0 ? (
           <div className="rounded-3xl bg-white p-8 text-center border border-slate-200/80 shadow-xs">
             <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-2 opacity-80" />
-            <p className="text-slate-800 font-semibold text-sm">Brak aktywnych ostrzeżeń w Twojej gminie</p>
-            <p className="text-xs text-slate-400 mt-1">Użyj powyższego formularza, aby opublikować nowy alert.</p>
+            <p className="text-slate-800 font-semibold text-sm">
+              {activeSearchQuery || activeCategoryFilter !== 'all' || activeOrgFilter !== 'all' || activeTimeframe !== 'wszystkie'
+                ? 'Brak aktywnych ostrzeżeń spełniających wybrane kryteria'
+                : 'Brak aktywnych ostrzeżeń w Twojej gminie'}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {activeSearchQuery || activeCategoryFilter !== 'all' || activeOrgFilter !== 'all' || activeTimeframe !== 'wszystkie'
+                ? 'Spróbuj zmienić parametry filtrów lub wyczyścić wyszukiwanie.'
+                : 'Użyj powyższego formularza, aby opublikować nowy alert.'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -727,7 +1005,12 @@ export const DashboardAlertsPage: React.FC = () => {
                       </span>
 
                       {/* Badge lokalizacji */}
-                      <span className="flex items-center gap-1 text-xs text-slate-700 bg-slate-100 px-3 py-1 rounded-xl font-medium border border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => handleFocusOnMap(alert)}
+                        className="inline-flex items-center gap-1 text-xs text-slate-700 bg-slate-100 hover:bg-slate-200/80 px-3 py-1 rounded-xl font-medium border border-slate-200/60 transition cursor-pointer"
+                        title="Pokaż tę lokalizację na mapie"
+                      >
                         <MapPin className="h-3.5 w-3.5 text-red-500 shrink-0" />
                         <span>
                           {alert.locationName ? (
@@ -743,7 +1026,7 @@ export const DashboardAlertsPage: React.FC = () => {
                             alert.municipality?.name || 'Lokalizacja'
                           )}
                         </span>
-                      </span>
+                      </button>
                     </div>
 
                     <p className="text-sm sm:text-base text-slate-900 font-semibold leading-relaxed">
@@ -764,7 +1047,17 @@ export const DashboardAlertsPage: React.FC = () => {
                   </div>
 
                   {/* Przyciski Akcji */}
-                  <div className="flex items-center gap-2 pt-2">
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => handleFocusOnMap(alert)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold border border-indigo-200/60 shadow-2xs hover:shadow-xs transition shrink-0 cursor-pointer active:scale-95"
+                      title="Zlokalizuj to zdarzenie na mapie"
+                    >
+                      <MapPin className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>Na mapie</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setSelectedHistoryAlert(alert)}
@@ -789,7 +1082,7 @@ export const DashboardAlertsPage: React.FC = () => {
                         <button
                           onClick={() => handleDeactivate(alert.id)}
                           disabled={actionLoadingId === alert.id}
-                          className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2 px-3 shadow-xs tracking-wider uppercase transition transform active:scale-[0.98] disabled:opacity-50"
+                          className="flex-1 min-w-[110px] flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2 px-3 shadow-xs tracking-wider uppercase transition transform active:scale-[0.98] disabled:opacity-50"
                         >
                           {actionLoadingId === alert.id ? (
                             <>

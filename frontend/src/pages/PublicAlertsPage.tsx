@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api';
 import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
 import {
@@ -33,6 +33,25 @@ export const PublicAlertsPage: React.FC = () => {
   const [selectedVoivodeship, setSelectedVoivodeship] = useState<string>('all');
   const [selectedCountyOrCity, setSelectedCountyOrCity] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+
+  // Stan fokusu na konkretnym alercie na mapie
+  const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<number>(0);
+  const mapSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleFocusOnMap = (alert: AlertMapItem) => {
+    // Jeśli widok to same karty ('grid'), przełączamy na widok dzielony ('split'), aby mapa była widoczna
+    if (viewMode === 'grid') {
+      setViewMode('split');
+    }
+    setFocusedAlertId(alert.id);
+    setFocusKey((k) => k + 1);
+
+    // Płynne przewinięcie do sekcji mapy
+    setTimeout(() => {
+      mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+  };
 
   const fetchAlerts = async () => {
     setIsLoading(true);
@@ -405,20 +424,25 @@ export const PublicAlertsPage: React.FC = () => {
         <div className="space-y-6">
           {/* Widok Mapy (gdy 'split' lub 'map') */}
           {(viewMode === 'split' || viewMode === 'map') && (
-            <section className="rounded-3xl bg-white p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3">
+            <section
+              ref={mapSectionRef}
+              className="rounded-3xl bg-white p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3 scroll-mt-6"
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                   <MapPin className="h-4 w-4 text-red-500" />
                   <span>Mapa Ostrzeżeń Kryzysowych ({filteredAlerts.length})</span>
                 </div>
                 <span className="text-xs text-slate-400 hidden sm:inline">
-                  Kliknij punkt na mapie, aby zobaczyć szczegóły
+                  Kliknij punkt na mapie lub „Pokaż na mapie” na karcie, aby zobaczyć szczegóły
                 </span>
               </div>
 
               <AlertsMap
                 alerts={filteredAlerts}
                 height={viewMode === 'map' ? '600px' : '440px'}
+                focusedAlertId={focusedAlertId}
+                focusKey={focusKey}
               />
             </section>
           )}
@@ -473,7 +497,12 @@ export const PublicAlertsPage: React.FC = () => {
                             </span>
 
                             {/* Rozbudowany badge lokalizacji (Miasto, Powiat, Województwo) */}
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold border border-slate-200/60">
+                            <button
+                              type="button"
+                              onClick={() => handleFocusOnMap(alert)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-800 text-xs font-semibold border border-slate-200/60 transition cursor-pointer"
+                              title="Pokaż tę lokalizację na mapie"
+                            >
                               <MapPin className="h-3.5 w-3.5 shrink-0 text-red-500" />
                               <span>
                                 {alert.locationName ? (
@@ -489,7 +518,7 @@ export const PublicAlertsPage: React.FC = () => {
                                   alert.municipality?.name || 'Lokalizacja'
                                 )}
                               </span>
-                            </span>
+                            </button>
                           </div>
 
                           {/* Treść alertu */}
@@ -498,7 +527,7 @@ export const PublicAlertsPage: React.FC = () => {
                           </p>
                         </div>
 
-                        {/* Dolna belka karty: Organizacja & Czas */}
+                        {/* Dolna belka karty: Organizacja, Przycisk przejścia do mapy & Czas */}
                         <div className="mt-5 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
                           <div className="flex items-center gap-2">
                             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-indigo-600">
@@ -522,9 +551,21 @@ export const PublicAlertsPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 font-mono text-[11px]">
-                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                            <time dateTime={alert.createdAt}>{formatDate(alert.createdAt)}</time>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleFocusOnMap(alert)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition border border-indigo-200/60 shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                              title="Zlokalizuj to zdarzenie na mapie"
+                            >
+                              <MapPin className="h-3.5 w-3.5 text-indigo-600" />
+                              <span>Pokaż na mapie</span>
+                            </button>
+
+                            <div className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 font-mono text-[11px]">
+                              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                              <time dateTime={alert.createdAt}>{formatDate(alert.createdAt)}</time>
+                            </div>
                           </div>
                         </div>
                       </article>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -56,6 +56,8 @@ interface AlertsMapProps {
   onDeactivate?: (alertId: string) => void;
   canDeactivate?: (alert: AlertMapItem) => boolean;
   actionLoadingId?: string | null;
+  focusedAlertId?: string | null;
+  focusKey?: number;
 }
 
 // Domyślne współrzędne dla znanych gmin w rejonie
@@ -138,13 +140,45 @@ const FitBoundsToMarkers: React.FC<{
   return null;
 };
 
+// Komponent dynamicznie przenoszący widok mapy i otwierający dymek wskazanego alertu
+const FocusOnAlertController: React.FC<{
+  alertMarkers: { alert: AlertMapItem; position: [number, number] }[];
+  focusedAlertId?: string | null;
+  focusKey?: number;
+  markerRefs: React.MutableRefObject<Record<string, L.Marker>>;
+}> = ({ alertMarkers, focusedAlertId, focusKey, markerRefs }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!focusedAlertId) return;
+
+    const found = alertMarkers.find((m) => m.alert.id === focusedAlertId);
+    if (found) {
+      map.flyTo(found.position, 14, { duration: 1.1 });
+      const timer = setTimeout(() => {
+        const marker = markerRefs.current[focusedAlertId];
+        if (marker) {
+          marker.openPopup();
+        }
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [focusedAlertId, focusKey, alertMarkers, map, markerRefs]);
+
+  return null;
+};
+
 export const AlertsMap: React.FC<AlertsMapProps> = ({
   alerts,
   height = '500px',
   onDeactivate,
   canDeactivate,
   actionLoadingId,
+  focusedAlertId,
+  focusKey,
 }) => {
+  const markerRefs = useRef<Record<string, L.Marker>>({});
+
   // Przeliczenie współrzędnych dla alertów
   const alertMarkers = useMemo(() => {
     return alerts
@@ -203,8 +237,16 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
 
-        {/* Automatyczne dopasowanie widoku do markerów */}
-        <FitBoundsToMarkers positions={positions} />
+        {/* Automatyczne dopasowanie widoku do markerów (gdy brak celowego skupienia) */}
+        {!focusedAlertId && <FitBoundsToMarkers positions={positions} />}
+
+        {/* Kontroler dynamicznego przelotu do wskazanego alertu */}
+        <FocusOnAlertController
+          alertMarkers={alertMarkers}
+          focusedAlertId={focusedAlertId}
+          focusKey={focusKey}
+          markerRefs={markerRefs}
+        />
 
         {/* Renderowanie markerów alertów */}
         {alertMarkers.map(({ alert, position }) => {
@@ -216,6 +258,11 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
               key={alert.id}
               position={position}
               icon={createCrisisIcon(alert.category, alert.isActive)}
+              ref={(ref) => {
+                if (ref) {
+                  markerRefs.current[alert.id] = ref;
+                }
+              }}
             >
               <Popup className="crisis-leaflet-popup">
                 <div className="p-1 max-w-xs sm:max-w-sm space-y-3 font-sans">
