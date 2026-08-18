@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
 import {
-  Radio,
   MapPin,
   Building,
   AlertTriangle,
@@ -32,7 +31,7 @@ export const PublicAlertsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedVoivodeship, setSelectedVoivodeship] = useState<string>('all');
-  const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
+  const [selectedCountyOrCity, setSelectedCountyOrCity] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
 
   const fetchAlerts = async () => {
@@ -47,7 +46,7 @@ export const PublicAlertsPage: React.FC = () => {
       console.error('Błąd podczas pobierania publicznych alertów:', err);
       setError(
         err.response?.data?.message ||
-          'Nie udało się połączyć z serwerem komunikatów. Sprawdź połączenie sieciowe.'
+        'Nie udało się połączyć z serwerem komunikatów. Sprawdź połączenie sieciowe.'
       );
     } finally {
       setIsLoading(false);
@@ -58,7 +57,7 @@ export const PublicAlertsPage: React.FC = () => {
     fetchAlerts();
   }, []);
 
-  // Unikalne kategorie, województwa i gminy do filtrów
+  // Unikalne kategorie i województwa do filtrów
   const categories = useMemo(() => {
     const set = new Set(alerts.map((a) => a.category).filter(Boolean));
     return Array.from(set);
@@ -66,15 +65,34 @@ export const PublicAlertsPage: React.FC = () => {
 
   const voivodeships = useMemo(() => {
     const set = new Set(alerts.map((a) => a.voivodeship).filter(Boolean) as string[]);
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'));
   }, [alerts]);
 
-  const municipalities = useMemo(() => {
-    const set = new Set(alerts.map((a) => a.municipality?.name).filter(Boolean) as string[]);
-    return Array.from(set).sort();
-  }, [alerts]);
+  // Powiaty i miasta dostępne wyłącznie w wybranym województwie (bez jednostki autora)
+  const availableCountiesAndCities = useMemo(() => {
+    if (selectedVoivodeship === 'all') return [];
 
-  // Różnopoziomowe filtrowanie (Województwo -> Powiat -> Gmina -> Miasto/Wieś -> Treść)
+    const set = new Set<string>();
+    alerts
+      .filter(
+        (a) =>
+          a.voivodeship &&
+          a.voivodeship.toLowerCase() === selectedVoivodeship.toLowerCase()
+      )
+      .forEach((a) => {
+        if (a.county) set.add(a.county);
+        if (a.locationName) set.add(a.locationName);
+      });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'));
+  }, [alerts, selectedVoivodeship]);
+
+  const handleVoivodeshipChange = (voivodeship: string) => {
+    setSelectedVoivodeship(voivodeship);
+    setSelectedCountyOrCity('all'); // Automatyczny reset powiatu/miasta po zmianie województwa
+  };
+
+  // Różnopoziomowe filtrowanie (Kategoria -> Województwo -> Powiat/Miasto -> Wyszukiwanie tekstowe)
   const filteredAlerts = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
@@ -92,12 +110,17 @@ export const PublicAlertsPage: React.FC = () => {
         return false;
       }
 
-      // 3. Filtr gminy
+      // 3. Filtr powiatu / miasta (dostępny i aktywny tylko gdy wybrano województwo)
       if (
-        selectedMunicipality !== 'all' &&
-        alert.municipality?.name !== selectedMunicipality
+        selectedVoivodeship !== 'all' &&
+        selectedCountyOrCity !== 'all'
       ) {
-        return false;
+        const matchesCounty = alert.county?.toLowerCase() === selectedCountyOrCity.toLowerCase();
+        const matchesLocation = alert.locationName?.toLowerCase() === selectedCountyOrCity.toLowerCase();
+
+        if (!matchesCounty && !matchesLocation) {
+          return false;
+        }
       }
 
       // 4. Wyszukiwanie pełnotekstowe
@@ -121,7 +144,7 @@ export const PublicAlertsPage: React.FC = () => {
         matchOrg
       );
     });
-  }, [alerts, searchQuery, selectedCategory, selectedVoivodeship, selectedMunicipality]);
+  }, [alerts, searchQuery, selectedCategory, selectedVoivodeship, selectedCountyOrCity]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -176,11 +199,7 @@ export const PublicAlertsPage: React.FC = () => {
       <section className="relative overflow-hidden rounded-3xl bg-white p-6 sm:p-8 border border-slate-200/80 shadow-xs">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="space-y-2.5 max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600 border border-red-100">
-              <span className="h-2 w-2 rounded-full bg-red-500 animate-ping"></span>
-              <Radio className="h-3.5 w-3.5" />
-              <span>Transmisja na żywo • Kryzysowy Kanał Informacyjny</span>
-            </div>
+
 
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Ostrzeżenia i Komunikaty Ratunkowe
@@ -243,8 +262,8 @@ export const PublicAlertsPage: React.FC = () => {
           <div className="md:col-span-3">
             <select
               value={selectedVoivodeship}
-              onChange={(e) => setSelectedVoivodeship(e.target.value)}
-              className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 px-3 text-xs sm:text-sm text-slate-700 font-semibold focus:bg-white focus:border-indigo-500 focus:outline-none"
+              onChange={(e) => handleVoivodeshipChange(e.target.value)}
+              className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 px-3 text-xs sm:text-sm text-slate-700 font-semibold focus:bg-white focus:border-indigo-500 focus:outline-none cursor-pointer transition"
             >
               <option value="all">Wszystkie województwa ({voivodeships.length})</option>
               {voivodeships.map((v) => (
@@ -255,19 +274,32 @@ export const PublicAlertsPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Filtr Gminy */}
+          {/* Filtr Powiatu i Miasta (aktywny tylko po wyborze województwa) */}
           <div className="md:col-span-3">
             <select
-              value={selectedMunicipality}
-              onChange={(e) => setSelectedMunicipality(e.target.value)}
-              className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 px-3 text-xs sm:text-sm text-slate-700 font-semibold focus:bg-white focus:border-indigo-500 focus:outline-none"
+              value={selectedCountyOrCity}
+              disabled={selectedVoivodeship === 'all'}
+              onChange={(e) => setSelectedCountyOrCity(e.target.value)}
+              className={`w-full rounded-xl border py-2.5 px-3 text-xs sm:text-sm font-semibold transition focus:outline-none ${
+                selectedVoivodeship === 'all'
+                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                  : 'bg-slate-50 border-slate-200/80 text-slate-700 focus:bg-white focus:border-indigo-500 cursor-pointer'
+              }`}
             >
-              <option value="all">Wszystkie gminy ({municipalities.length})</option>
-              {municipalities.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
+              {selectedVoivodeship === 'all' ? (
+                <option value="all">Najpierw wybierz województwo</option>
+              ) : (
+                <>
+                  <option value="all">
+                    Wszystkie powiaty i miasta ({availableCountiesAndCities.length})
+                  </option>
+                  {availableCountiesAndCities.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
         </div>
@@ -278,11 +310,10 @@ export const PublicAlertsPage: React.FC = () => {
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode('split')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'split'
-                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'split'
+                ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <Columns className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Podzielony</span>
@@ -290,11 +321,10 @@ export const PublicAlertsPage: React.FC = () => {
 
             <button
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'map'
-                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'map'
+                ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <MapIcon className="h-3.5 w-3.5" />
               <span>Mapa</span>
@@ -302,11 +332,10 @@ export const PublicAlertsPage: React.FC = () => {
 
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'grid'
-                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'grid'
+                ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               <span>Karty</span>
@@ -317,11 +346,10 @@ export const PublicAlertsPage: React.FC = () => {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`rounded-xl px-3 py-1.5 font-bold transition shrink-0 ${
-                selectedCategory === 'all'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-              }`}
+              className={`rounded-xl px-3 py-1.5 font-bold transition shrink-0 ${selectedCategory === 'all'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                }`}
             >
               Wszystkie ({alerts.length})
             </button>
@@ -329,11 +357,10 @@ export const PublicAlertsPage: React.FC = () => {
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`rounded-xl px-2.5 py-1.5 font-semibold transition shrink-0 ${
-                  selectedCategory === cat
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                }`}
+                className={`rounded-xl px-2.5 py-1.5 font-semibold transition shrink-0 ${selectedCategory === cat
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 {cat.split(' ')[0]}
               </button>
@@ -413,7 +440,7 @@ export const PublicAlertsPage: React.FC = () => {
                   <div>
                     <h3 className="text-lg font-bold text-slate-900">Brak aktywnych ostrzeżeń</h3>
                     <p className="text-xs text-slate-500 mt-1">
-                      {searchQuery || selectedCategory !== 'all' || selectedMunicipality !== 'all' || selectedVoivodeship !== 'all'
+                      {searchQuery || selectedCategory !== 'all' || selectedCountyOrCity !== 'all' || selectedVoivodeship !== 'all'
                         ? 'Żaden alert nie pasuje do wybranych kryteriów wyszukiwania.'
                         : 'Wszystkie jednostki ratunkowe raportują brak bezpośrednich zagrożeń kryzysowych.'}
                     </p>
