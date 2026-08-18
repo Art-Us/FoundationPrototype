@@ -8,6 +8,7 @@ export interface User {
   phone: string;
   role: UserRole;
   organizationId?: string;
+  organization?: Organization;
   isVerified: boolean;
   createdAt?: string;
   updatedAt?: string;
