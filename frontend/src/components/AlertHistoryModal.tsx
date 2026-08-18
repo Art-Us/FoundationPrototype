@@ -70,7 +70,6 @@ export const calculateAlertDurations = (alert: AlertMapItem) => {
     const eventTime = new Date(evt.timestamp).getTime();
 
     if (evt.action === 'created' || evt.action === 'reactivated') {
-      // Jeśli przed reaktywacją był stan odwołany, zarejestruj czas pauzy
       if (lastDeactivatedTime !== null) {
         const pauseMs = eventTime - lastDeactivatedTime;
         episodes.push({
@@ -100,7 +99,6 @@ export const calculateAlertDurations = (alert: AlertMapItem) => {
     }
   });
 
-  // Jeśli alert jest nadal aktywny (nie zakończony)
   if (activeStartTime !== null) {
     const ongoingMs = Date.now() - activeStartTime;
     totalActiveMs += ongoingMs;
@@ -113,7 +111,6 @@ export const calculateAlertDurations = (alert: AlertMapItem) => {
     });
   }
 
-  // Pierwsza i ostatnia data
   const firstEventDate = events[0]?.timestamp || alert.createdAt;
   const lastEventDate = events[events.length - 1]?.timestamp || alert.createdAt;
 
@@ -136,15 +133,15 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
   const getActionIcon = (action: string) => {
     switch (action) {
       case 'created':
-        return <PlayCircle className="h-4 w-4 text-emerald-400" />;
+        return <PlayCircle className="h-4 w-4 text-emerald-600" />;
       case 'deactivated':
-        return <PauseCircle className="h-4 w-4 text-red-400" />;
+        return <PauseCircle className="h-4 w-4 text-red-600" />;
       case 'reactivated':
-        return <PlayCircle className="h-4 w-4 text-cyan-400" />;
+        return <PlayCircle className="h-4 w-4 text-cyan-600" />;
       case 'updated':
-        return <Edit3 className="h-4 w-4 text-amber-400" />;
+        return <Edit3 className="h-4 w-4 text-amber-600" />;
       default:
-        return <Clock className="h-4 w-4 text-slate-400" />;
+        return <Clock className="h-4 w-4 text-slate-500" />;
     }
   };
 
@@ -166,60 +163,60 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
   const getActionBadgeColor = (action: string) => {
     switch (action) {
       case 'created':
-        return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
       case 'deactivated':
-        return 'bg-red-500/15 text-red-300 border-red-500/30';
+        return 'bg-red-50 text-red-700 border-red-200';
       case 'reactivated':
-        return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+        return 'bg-cyan-50 text-cyan-700 border-cyan-200';
       case 'updated':
-        return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+        return 'bg-amber-50 text-amber-700 border-amber-200';
       default:
-        return 'bg-slate-700 text-slate-300 border-slate-600';
+        return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-2xl rounded-3xl bg-slate-850 p-6 sm:p-8 shadow-2xl border border-slate-700 space-y-6 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-2xl rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] overflow-y-auto">
         {/* Nagłówek modalu */}
-        <div className="flex items-center justify-between border-b border-slate-700 pb-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-400 border border-brand-500/20">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
               <History className="h-6 w-6 stroke-[2.5]" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white">Historia i Cykl Życia Alertu</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-lg font-bold text-slate-900">Historia i Cykl Życia Alertu</h3>
+              <p className="text-xs text-slate-500">
                 Szczegółowy audyt zdarzeń, czasu aktywności i wznowień
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="rounded-xl p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Karta alertu - podsumowanie */}
-        <div className="rounded-2xl bg-slate-900/90 p-4 border border-slate-700/80 space-y-2">
+        <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200/80 space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-brand-400 uppercase tracking-wider">
+            <span className="font-bold text-indigo-700 uppercase tracking-wider">
               {alert.category}
             </span>
             <span
               className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
                 alert.isActive
-                  ? 'bg-red-500/15 text-red-400 border border-red-500/30'
-                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+                  ? 'bg-red-50 text-red-600 border border-red-200'
+                  : 'bg-slate-200/80 text-slate-600 border border-slate-300'
               }`}
             >
               {alert.isActive ? '● Aktywny' : '✓ Zarchiwizowany'}
             </span>
           </div>
-          <p className="text-sm font-semibold text-slate-200">{alert.content}</p>
-          <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+          <p className="text-sm font-semibold text-slate-900">{alert.content}</p>
+          <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
             <span>
               Lokalizacja: <strong>{alert.locationName || alert.municipality?.name || 'Gmina'}</strong>
             </span>
@@ -232,24 +229,24 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
         {/* Podsumowanie czasowe (Kluczowe metryki) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Sumaryczny czas aktywności */}
-          <div className="rounded-2xl bg-slate-800/90 p-4 border border-brand-500/30 shadow-md">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
+          <div className="rounded-2xl bg-white p-4 border border-indigo-200 shadow-xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
               <span>Łączny czas alertu</span>
-              <Timer className="h-4 w-4 text-brand-400" />
+              <Timer className="h-4 w-4 text-indigo-600" />
             </div>
-            <div className="text-xl font-extrabold text-white font-mono">
+            <div className="text-xl font-extrabold text-slate-900 font-mono">
               {formatDuration(totalActiveMs)}
             </div>
             <div className="text-[10px] text-slate-400 mt-0.5">Suma stanów aktywnych</div>
           </div>
 
           {/* Data rozpoczęcia */}
-          <div className="rounded-2xl bg-slate-800/90 p-4 border border-slate-700 shadow-md">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
+          <div className="rounded-2xl bg-white p-4 border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
               <span>Pierwszy start</span>
-              <Calendar className="h-4 w-4 text-emerald-400" />
+              <Calendar className="h-4 w-4 text-emerald-600" />
             </div>
-            <div className="text-xs font-bold text-slate-200">
+            <div className="text-xs font-bold text-slate-800">
               {new Date(firstEventDate).toLocaleString('pl-PL', {
                 day: '2-digit',
                 month: '2-digit',
@@ -262,12 +259,12 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
           </div>
 
           {/* Ostatnia zmiana / koniec */}
-          <div className="rounded-2xl bg-slate-800/90 p-4 border border-slate-700 shadow-md">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
+          <div className="rounded-2xl bg-white p-4 border border-slate-200 shadow-xs">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
               <span>Ostatnie zdarzenie</span>
-              <Clock className="h-4 w-4 text-teal-400" />
+              <Clock className="h-4 w-4 text-cyan-600" />
             </div>
-            <div className="text-xs font-bold text-slate-200">
+            <div className="text-xs font-bold text-slate-800">
               {new Date(lastEventDate).toLocaleString('pl-PL', {
                 day: '2-digit',
                 month: '2-digit',
@@ -285,28 +282,28 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
         {/* Rozbicie na epizody czasowe */}
         {episodes.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
               Cykle i Odstępy Czasowe ({episodes.length})
             </h4>
             <div className="space-y-2">
               {episodes.map((ep, idx) => (
                 <div
                   key={idx}
-                  className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-3 ${
+                  className={`p-3 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
                     ep.type === 'active'
-                      ? 'bg-brand-500/10 border-brand-500/30 text-brand-200'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400'
+                      ? 'bg-indigo-50/50 border-indigo-200 text-indigo-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-600'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     {ep.type === 'active' ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                     ) : (
-                      <PauseCircle className="h-4 w-4 text-slate-500 shrink-0" />
+                      <PauseCircle className="h-4 w-4 text-slate-400 shrink-0" />
                     )}
                     <div>
-                      <div className="font-bold text-white">{ep.description}</div>
-                      <div className="text-[11px] opacity-75">
+                      <div className="font-bold text-slate-900">{ep.description}</div>
+                      <div className="text-[11px] text-slate-500">
                         {new Date(ep.startTime).toLocaleTimeString('pl-PL', {
                           hour: '2-digit',
                           minute: '2-digit',
@@ -321,7 +318,7 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
                       </div>
                     </div>
                   </div>
-                  <div className="font-mono font-bold text-sm text-white shrink-0">
+                  <div className="font-mono font-bold text-sm text-slate-900 shrink-0">
                     {formatDuration(ep.durationMs)}
                   </div>
                 </div>
@@ -332,22 +329,21 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
 
         {/* Oś czasu (Timeline zdarzeń) */}
         <div className="space-y-3 pt-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600">
             Dziennik Zdarzeń (Timeline)
           </h4>
 
-          <div className="relative border-l-2 border-slate-700 ml-3.5 space-y-5 py-1">
+          <div className="relative border-l-2 border-slate-200 ml-3.5 space-y-4 py-1">
             {events.map((evt, idx) => (
               <div key={evt.id || idx} className="relative pl-6 group">
-                {/* Punkt na osi */}
-                <div className="absolute -left-[9px] top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 border-2 border-brand-500 group-hover:scale-110 transition">
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-400"></span>
+                <div className="absolute -left-[9px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white border-2 border-indigo-600 group-hover:scale-110 transition">
+                  <span className="h-1.5 w-1.5 rounded-full bg-indigo-600"></span>
                 </div>
 
-                <div className="rounded-xl bg-slate-900/80 p-3 border border-slate-700/60 space-y-1.5 hover:border-slate-600 transition">
+                <div className="rounded-2xl bg-slate-50 p-3.5 border border-slate-200 space-y-1.5 hover:border-slate-300 transition">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${getActionBadgeColor(
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold border ${getActionBadgeColor(
                         evt.action
                       )}`}
                     >
@@ -355,7 +351,7 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
                       <span>{getActionName(evt.action)}</span>
                     </span>
 
-                    <span className="text-[11px] font-mono text-slate-400">
+                    <span className="text-[11px] font-mono text-slate-500">
                       {new Date(evt.timestamp).toLocaleString('pl-PL', {
                         day: '2-digit',
                         month: '2-digit',
@@ -368,19 +364,19 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
                   </div>
 
                   {evt.details && (
-                    <p className="text-xs text-slate-300 font-medium">{evt.details}</p>
+                    <p className="text-xs text-slate-700 font-medium">{evt.details}</p>
                   )}
 
                   <div className="flex items-center gap-3 text-[11px] text-slate-500 pt-0.5">
                     {evt.userName && (
                       <span className="flex items-center gap-1">
-                        <User className="h-3 w-3" />
+                        <User className="h-3 w-3 text-slate-400" />
                         <span>{evt.userName}</span>
                       </span>
                     )}
                     {evt.organizationName && (
                       <span className="flex items-center gap-1">
-                        <Building className="h-3 w-3" />
+                        <Building className="h-3 w-3 text-slate-400" />
                         <span>{evt.organizationName}</span>
                       </span>
                     )}
@@ -395,7 +391,7 @@ export const AlertHistoryModal: React.FC<AlertHistoryModalProps> = ({ alert, onC
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition"
+            className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
           >
             Zamknij
           </button>

@@ -207,3 +207,52 @@ export const createResource = async (
     });
   }
 };
+
+/**
+ * @desc    Pobiera listę zasobów organizacji zalogowanego użytkownika
+ * @route   GET /api/resources/my-organization
+ * @access  Private (wymaga protect)
+ */
+export const getMyOrganizationResources = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const user = req.user!;
+    if (!user.organizationId) {
+      res.status(200).json({
+        success: true,
+        count: 0,
+        resources: [],
+      });
+      return;
+    }
+
+    const resources = await Resource.findAll({
+      where: {
+        organizationId: user.organizationId,
+        isActive: true,
+      },
+      include: [
+        {
+          model: Organization,
+          as: 'organization',
+          attributes: ['id', 'name', 'type'],
+        },
+      ],
+      order: [['type', 'ASC'], ['createdAt', 'DESC']],
+    });
+
+    res.status(200).json({
+      success: true,
+      count: resources.length,
+      resources,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Błąd podczas pobierania zasobów organizacji.',
+      error: error.message,
+    });
+  }
+};

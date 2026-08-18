@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api';
 import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
 import {
-  Radio,
   MapPin,
   Building,
   AlertTriangle,
@@ -32,8 +31,27 @@ export const PublicAlertsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedVoivodeship, setSelectedVoivodeship] = useState<string>('all');
-  const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
+  const [selectedCountyOrCity, setSelectedCountyOrCity] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+
+  // Stan fokusu na konkretnym alercie na mapie
+  const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<number>(0);
+  const mapSectionRef = useRef<HTMLDivElement>(null);
+
+  const handleFocusOnMap = (alert: AlertMapItem) => {
+    // Jeśli widok to same karty ('grid'), przełączamy na widok dzielony ('split'), aby mapa była widoczna
+    if (viewMode === 'grid') {
+      setViewMode('split');
+    }
+    setFocusedAlertId(alert.id);
+    setFocusKey((k) => k + 1);
+
+    // Płynne przewinięcie do sekcji mapy
+    setTimeout(() => {
+      mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+  };
 
   const fetchAlerts = async () => {
     setIsLoading(true);
@@ -47,7 +65,7 @@ export const PublicAlertsPage: React.FC = () => {
       console.error('Błąd podczas pobierania publicznych alertów:', err);
       setError(
         err.response?.data?.message ||
-          'Nie udało się połączyć z serwerem komunikatów. Sprawdź połączenie sieciowe.'
+        'Nie udało się połączyć z serwerem komunikatów. Sprawdź połączenie sieciowe.'
       );
     } finally {
       setIsLoading(false);
@@ -58,7 +76,7 @@ export const PublicAlertsPage: React.FC = () => {
     fetchAlerts();
   }, []);
 
-  // Unikalne kategorie, województwa i gminy do filtrów
+  // Unikalne kategorie i województwa do filtrów
   const categories = useMemo(() => {
     const set = new Set(alerts.map((a) => a.category).filter(Boolean));
     return Array.from(set);
@@ -66,15 +84,34 @@ export const PublicAlertsPage: React.FC = () => {
 
   const voivodeships = useMemo(() => {
     const set = new Set(alerts.map((a) => a.voivodeship).filter(Boolean) as string[]);
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'));
   }, [alerts]);
 
-  const municipalities = useMemo(() => {
-    const set = new Set(alerts.map((a) => a.municipality?.name).filter(Boolean) as string[]);
-    return Array.from(set).sort();
-  }, [alerts]);
+  // Powiaty i miasta dostępne wyłącznie w wybranym województwie (bez jednostki autora)
+  const availableCountiesAndCities = useMemo(() => {
+    if (selectedVoivodeship === 'all') return [];
 
-  // Różnopoziomowe filtrowanie (Województwo -> Powiat -> Gmina -> Miasto/Wieś -> Treść)
+    const set = new Set<string>();
+    alerts
+      .filter(
+        (a) =>
+          a.voivodeship &&
+          a.voivodeship.toLowerCase() === selectedVoivodeship.toLowerCase()
+      )
+      .forEach((a) => {
+        if (a.county) set.add(a.county);
+        if (a.locationName) set.add(a.locationName);
+      });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'));
+  }, [alerts, selectedVoivodeship]);
+
+  const handleVoivodeshipChange = (voivodeship: string) => {
+    setSelectedVoivodeship(voivodeship);
+    setSelectedCountyOrCity('all'); // Automatyczny reset powiatu/miasta po zmianie województwa
+  };
+
+  // Różnopoziomowe filtrowanie (Kategoria -> Województwo -> Powiat/Miasto -> Wyszukiwanie tekstowe)
   const filteredAlerts = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
@@ -92,15 +129,20 @@ export const PublicAlertsPage: React.FC = () => {
         return false;
       }
 
-      // 3. Filtr gminy
+      // 3. Filtr powiatu / miasta (dostępny i aktywny tylko gdy wybrano województwo)
       if (
-        selectedMunicipality !== 'all' &&
-        alert.municipality?.name !== selectedMunicipality
+        selectedVoivodeship !== 'all' &&
+        selectedCountyOrCity !== 'all'
       ) {
-        return false;
+        const matchesCounty = alert.county?.toLowerCase() === selectedCountyOrCity.toLowerCase();
+        const matchesLocation = alert.locationName?.toLowerCase() === selectedCountyOrCity.toLowerCase();
+
+        if (!matchesCounty && !matchesLocation) {
+          return false;
+        }
       }
 
-      // 4. Wyszukiwanie pełnotekstowe po wszystkich poziomach
+      // 4. Wyszukiwanie pełnotekstowe
       if (!q) return true;
 
       const matchContent = alert.content.toLowerCase().includes(q);
@@ -121,7 +163,7 @@ export const PublicAlertsPage: React.FC = () => {
         matchOrg
       );
     });
-  }, [alerts, searchQuery, selectedCategory, selectedVoivodeship, selectedMunicipality]);
+  }, [alerts, searchQuery, selectedCategory, selectedVoivodeship, selectedCountyOrCity]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -142,73 +184,66 @@ export const PublicAlertsPage: React.FC = () => {
     const lower = category.toLowerCase();
     if (lower.includes('hydro') || lower.includes('powód') || lower.includes('woda')) {
       return {
-        bg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
-        icon: <Waves className="h-3.5 w-3.5" />,
+        bg: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+        icon: <Waves className="h-3.5 w-3.5 text-cyan-600" />,
       };
     }
     if (lower.includes('drog') || lower.includes('transport') || lower.includes('most')) {
       return {
-        bg: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-        icon: <Truck className="h-3.5 w-3.5" />,
+        bg: 'bg-amber-50 text-amber-700 border-amber-200',
+        icon: <Truck className="h-3.5 w-3.5 text-amber-600" />,
       };
     }
     if (lower.includes('human') || lower.includes('pomoc') || lower.includes('dary')) {
       return {
-        bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-        icon: <HeartHandshake className="h-3.5 w-3.5" />,
+        bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        icon: <HeartHandshake className="h-3.5 w-3.5 text-emerald-600" />,
       };
     }
     if (lower.includes('pożar') || lower.includes('ogień') || lower.includes('dym')) {
       return {
-        bg: 'bg-red-500/10 text-red-400 border-red-500/30',
-        icon: <AlertOctagon className="h-3.5 w-3.5" />,
+        bg: 'bg-red-50 text-red-700 border-red-200',
+        icon: <AlertOctagon className="h-3.5 w-3.5 text-red-600" />,
       };
     }
     return {
-      bg: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-      icon: <AlertTriangle className="h-3.5 w-3.5" />,
+      bg: 'bg-purple-50 text-purple-700 border-purple-200',
+      icon: <AlertTriangle className="h-3.5 w-3.5 text-purple-600" />,
     };
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] space-y-8 pb-16">
-      {/* 1. Header / Hero Sekcja z animacją */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-850 to-brand-950/40 p-6 sm:p-10 border border-slate-800 shadow-2xl">
-        <div className="absolute top-0 right-0 -mt-8 -mr-8 h-64 w-64 rounded-full bg-brand-500/10 blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-1/3 -mb-12 h-48 w-48 rounded-full bg-red-500/10 blur-2xl pointer-events-none"></div>
-
+    <div className="space-y-6">
+      {/* 1. Header Hero Banner w stylu Metoxi */}
+      <section className="relative overflow-hidden rounded-3xl bg-white p-6 sm:p-8 border border-slate-200/80 shadow-xs">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="space-y-3 max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-400 border border-red-500/30">
-              <span className="h-2 w-2 rounded-full bg-red-400 animate-ping"></span>
-              <Radio className="h-3.5 w-3.5" />
-              <span>Transmisja na żywo • Kryzysowy Kanał Informacyjny</span>
-            </div>
+          <div className="space-y-2.5 max-w-2xl">
 
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-none">
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Ostrzeżenia i Komunikaty Ratunkowe
             </h1>
 
-            <p className="text-sm sm:text-base text-slate-300 font-normal leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
               Oficjalne meldunki operacyjne publikowane w czasie rzeczywistym przez samorządy,
-              straż pożarną oraz organizacje ratownicze. Wyszukuj komunikaty według województwa, powiatu, gminy lub miasta.
+              straż pożarną i służby ratownicze. Wyszukuj po województwach, powiatach i miastach.
             </p>
           </div>
 
-          {/* Szybki telefon alarmowy */}
+          {/* Telefon alarmowy */}
           <div className="flex flex-col sm:flex-row md:flex-col gap-3 shrink-0">
-            <div className="rounded-2xl bg-slate-800/90 p-4 border border-slate-700/80 shadow-lg backdrop-blur-md">
+            <div className="rounded-2xl bg-gradient-to-br from-red-50 to-rose-50/70 p-4 border border-red-100 shadow-xs">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/20 text-red-400">
-                  <PhoneCall className="h-5 w-5 animate-pulse" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm shadow-red-600/30">
+                  <PhoneCall className="h-5 w-5" />
                 </div>
                 <div>
-                  <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <span className="block text-[10px] font-bold text-red-700 uppercase tracking-wider">
                     Telefon Alarmowy
                   </span>
                   <a
                     href="tel:112"
-                    className="text-xl font-extrabold text-white hover:text-red-400 transition"
+                    className="text-lg font-black text-slate-900 hover:text-red-600 transition"
                   >
                     112 / 998
                   </a>
@@ -220,9 +255,9 @@ export const PublicAlertsPage: React.FC = () => {
       </section>
 
       {/* 2. Pasek Różnopoziomowego Wyszukiwania i Filtrów */}
-      <section className="rounded-2xl bg-slate-800/80 p-4 sm:p-5 border border-slate-700/80 shadow-xl backdrop-blur-xl space-y-4">
+      <section className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          {/* Główne pole wyszukiwarki wielopoziomowej */}
+          {/* Pole wyszukiwania */}
           <div className="md:col-span-6 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
@@ -230,12 +265,12 @@ export const PublicAlertsPage: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Wpisz województwo, powiat, gminę, miasto lub treść (np. dolnośląskie, Warszawa, Kłodzko)..."
-              className="w-full rounded-xl bg-slate-900/90 border border-slate-700 py-2.5 pl-10 pr-10 text-xs sm:text-sm text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition"
+              className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 pl-10 pr-10 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -246,8 +281,8 @@ export const PublicAlertsPage: React.FC = () => {
           <div className="md:col-span-3">
             <select
               value={selectedVoivodeship}
-              onChange={(e) => setSelectedVoivodeship(e.target.value)}
-              className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2.5 px-3 text-xs sm:text-sm text-white focus:border-brand-500 focus:outline-none"
+              onChange={(e) => handleVoivodeshipChange(e.target.value)}
+              className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 px-3 text-xs sm:text-sm text-slate-700 font-semibold focus:bg-white focus:border-indigo-500 focus:outline-none cursor-pointer transition"
             >
               <option value="all">Wszystkie województwa ({voivodeships.length})</option>
               {voivodeships.map((v) => (
@@ -258,34 +293,46 @@ export const PublicAlertsPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Filtr Gminy */}
+          {/* Filtr Powiatu i Miasta (aktywny tylko po wyborze województwa) */}
           <div className="md:col-span-3">
             <select
-              value={selectedMunicipality}
-              onChange={(e) => setSelectedMunicipality(e.target.value)}
-              className="w-full rounded-xl bg-slate-900 border border-slate-700 py-2.5 px-3 text-xs sm:text-sm text-white focus:border-brand-500 focus:outline-none"
+              value={selectedCountyOrCity}
+              disabled={selectedVoivodeship === 'all'}
+              onChange={(e) => setSelectedCountyOrCity(e.target.value)}
+              className={`w-full rounded-xl border py-2.5 px-3 text-xs sm:text-sm font-semibold transition focus:outline-none ${
+                selectedVoivodeship === 'all'
+                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                  : 'bg-slate-50 border-slate-200/80 text-slate-700 focus:bg-white focus:border-indigo-500 cursor-pointer'
+              }`}
             >
-              <option value="all">Wszystkie gminy ({municipalities.length})</option>
-              {municipalities.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
+              {selectedVoivodeship === 'all' ? (
+                <option value="all">Najpierw wybierz województwo</option>
+              ) : (
+                <>
+                  <option value="all">
+                    Wszystkie powiaty i miasta ({availableCountiesAndCities.length})
+                  </option>
+                  {availableCountiesAndCities.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
         </div>
 
         {/* Pasek przełączania widoku i chipy kategorii */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-slate-700/60">
-          {/* Przełącznik widoku: Podzielony, Mapa, Karty */}
-          <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-700/70 shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-100">
+          {/* Przełącznik widoku */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode('split')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'split'
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'split'
+                ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <Columns className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Podzielony</span>
@@ -293,11 +340,10 @@ export const PublicAlertsPage: React.FC = () => {
 
             <button
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'map'
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'map'
+                ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <MapIcon className="h-3.5 w-3.5" />
               <span>Mapa</span>
@@ -305,11 +351,10 @@ export const PublicAlertsPage: React.FC = () => {
 
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'grid'
-                  ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'grid'
+                ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+                }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               <span>Karty</span>
@@ -320,11 +365,10 @@ export const PublicAlertsPage: React.FC = () => {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`rounded-lg px-2.5 py-1 font-semibold transition shrink-0 ${
-                selectedCategory === 'all'
-                  ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700'
-              }`}
+              className={`rounded-xl px-3 py-1.5 font-bold transition shrink-0 ${selectedCategory === 'all'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                }`}
             >
               Wszystkie ({alerts.length})
             </button>
@@ -332,11 +376,10 @@ export const PublicAlertsPage: React.FC = () => {
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`rounded-lg px-2.5 py-1 font-semibold transition shrink-0 ${
-                  selectedCategory === cat
-                    ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-700'
-                }`}
+                className={`rounded-xl px-2.5 py-1.5 font-semibold transition shrink-0 ${selectedCategory === cat
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 {cat.split(' ')[0]}
               </button>
@@ -346,7 +389,7 @@ export const PublicAlertsPage: React.FC = () => {
           <button
             onClick={fetchAlerts}
             disabled={isLoading}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-600/40 transition shadow-sm shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-semibold transition shrink-0"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Odśwież</span>
@@ -354,8 +397,8 @@ export const PublicAlertsPage: React.FC = () => {
         </div>
 
         {searchQuery && (
-          <div className="text-xs text-brand-300 flex items-center gap-1.5 pt-1">
-            <Compass className="h-3.5 w-3.5 text-teal-400" />
+          <div className="text-xs text-indigo-700 flex items-center gap-1.5 pt-1">
+            <Compass className="h-3.5 w-3.5 text-indigo-600" />
             <span>
               Wyniki dla „<strong>{searchQuery}</strong>”: Znaleziono{' '}
               <strong>{filteredAlerts.length}</strong> komunikatów
@@ -366,13 +409,13 @@ export const PublicAlertsPage: React.FC = () => {
 
       {/* 3. Główna Zawartość: Mapa i Lista Alertów */}
       {error ? (
-        <div className="rounded-3xl bg-red-500/10 p-8 text-center border border-red-500/30 max-w-lg mx-auto space-y-4">
-          <AlertOctagon className="h-10 w-10 text-red-400 mx-auto" />
-          <h3 className="text-lg font-bold text-white">Błąd pobierania komunikatów</h3>
-          <p className="text-xs text-red-300">{error}</p>
+        <div className="rounded-3xl bg-red-50 p-8 text-center border border-red-100 max-w-lg mx-auto space-y-4">
+          <AlertOctagon className="h-10 w-10 text-red-500 mx-auto" />
+          <h3 className="text-base font-bold text-slate-900">Błąd pobierania komunikatów</h3>
+          <p className="text-xs text-red-600">{error}</p>
           <button
             onClick={fetchAlerts}
-            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition"
+            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-sm"
           >
             Spróbuj ponownie
           </button>
@@ -381,20 +424,25 @@ export const PublicAlertsPage: React.FC = () => {
         <div className="space-y-6">
           {/* Widok Mapy (gdy 'split' lub 'map') */}
           {(viewMode === 'split' || viewMode === 'map') && (
-            <section className="space-y-3">
+            <section
+              ref={mapSectionRef}
+              className="rounded-3xl bg-white p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3 scroll-mt-6"
+            >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-bold text-white">
-                  <MapPin className="h-4 w-4 text-red-400" />
+                <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                  <MapPin className="h-4 w-4 text-red-500" />
                   <span>Mapa Ostrzeżeń Kryzysowych ({filteredAlerts.length})</span>
                 </div>
                 <span className="text-xs text-slate-400 hidden sm:inline">
-                  Kliknij punkt na mapie, aby zobaczyć szczegóły
+                  Kliknij punkt na mapie lub „Pokaż na mapie” na karcie, aby zobaczyć szczegóły
                 </span>
               </div>
 
               <AlertsMap
                 alerts={filteredAlerts}
                 height={viewMode === 'map' ? '600px' : '440px'}
+                focusedAlertId={focusedAlertId}
+                focusKey={focusKey}
               />
             </section>
           )}
@@ -402,28 +450,28 @@ export const PublicAlertsPage: React.FC = () => {
           {/* Widok Kart (gdy 'split' lub 'grid') */}
           {(viewMode === 'split' || viewMode === 'grid') && (
             <section className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span className="text-sm font-bold text-white">
+              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                <span className="text-sm font-bold text-slate-900">
                   Lista aktywnych komunikatów ({filteredAlerts.length})
                 </span>
               </div>
 
               {filteredAlerts.length === 0 ? (
-                <div className="rounded-3xl bg-slate-800/40 p-12 text-center border border-slate-700/40 max-w-md mx-auto space-y-4">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">
+                <div className="rounded-3xl bg-white p-12 text-center border border-slate-200/80 shadow-xs max-w-md mx-auto space-y-4">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100">
                     <ShieldCheck className="h-7 w-7" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">Brak aktywnych ostrzeżeń</h3>
-                    <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                      {searchQuery || selectedCategory !== 'all' || selectedMunicipality !== 'all' || selectedVoivodeship !== 'all'
+                    <h3 className="text-lg font-bold text-slate-900">Brak aktywnych ostrzeżeń</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {searchQuery || selectedCategory !== 'all' || selectedCountyOrCity !== 'all' || selectedVoivodeship !== 'all'
                         ? 'Żaden alert nie pasuje do wybranych kryteriów wyszukiwania.'
                         : 'Wszystkie jednostki ratunkowe raportują brak bezpośrednich zagrożeń kryzysowych.'}
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {filteredAlerts.map((alert) => {
                     const categoryBadge = getCategoryBadge(alert.category);
                     const orgName = alert.author?.organization?.name || 'Służby Ratunkowe';
@@ -435,10 +483,10 @@ export const PublicAlertsPage: React.FC = () => {
                     return (
                       <article
                         key={alert.id}
-                        className="group relative flex flex-col justify-between rounded-3xl bg-slate-800/85 p-6 sm:p-7 shadow-xl backdrop-blur-xl border border-slate-700/60 hover:border-brand-500/50 hover:shadow-2xl hover:shadow-brand-500/5 transition duration-300"
+                        className="group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition duration-200"
                       >
                         {/* Górna belka karty: Kategoria & Rozbudowana Lokalizacja */}
-                        <div className="space-y-4">
+                        <div className="space-y-3.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             {/* Kategoria */}
                             <span
@@ -449,14 +497,19 @@ export const PublicAlertsPage: React.FC = () => {
                             </span>
 
                             {/* Rozbudowany badge lokalizacji (Miasto, Powiat, Województwo) */}
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-300 text-xs font-semibold">
-                              <MapPin className="h-3.5 w-3.5 shrink-0 text-brand-400" />
+                            <button
+                              type="button"
+                              onClick={() => handleFocusOnMap(alert)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-800 text-xs font-semibold border border-slate-200/60 transition cursor-pointer"
+                              title="Pokaż tę lokalizację na mapie"
+                            >
+                              <MapPin className="h-3.5 w-3.5 shrink-0 text-red-500" />
                               <span>
                                 {alert.locationName ? (
                                   <>
                                     <strong>{alert.locationName}</strong>
                                     {alert.voivodeship && (
-                                      <span className="text-slate-400 text-[11px] ml-1">
+                                      <span className="text-slate-500 text-[11px] ml-1 font-normal">
                                         (woj. {alert.voivodeship})
                                       </span>
                                     )}
@@ -465,32 +518,32 @@ export const PublicAlertsPage: React.FC = () => {
                                   alert.municipality?.name || 'Lokalizacja'
                                 )}
                               </span>
-                            </span>
+                            </button>
                           </div>
 
                           {/* Treść alertu */}
-                          <p className="text-base sm:text-lg text-slate-100 font-medium leading-relaxed">
+                          <p className="text-sm sm:text-base text-slate-800 font-semibold leading-relaxed">
                             {alert.content}
                           </p>
                         </div>
 
-                        {/* Dolna belka karty: Organizacja & Czas */}
-                        <div className="mt-6 pt-4 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+                        {/* Dolna belka karty: Organizacja, Przycisk przejścia do mapy & Czas */}
+                        <div className="mt-5 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
                           <div className="flex items-center gap-2">
-                            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 border border-slate-700 text-brand-400">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-indigo-600">
                               <Building className="h-3.5 w-3.5" />
                             </div>
                             <div>
-                              <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                              <div className="font-bold text-slate-800 flex items-center gap-1.5">
                                 <span>{orgName}</span>
                                 {orgType && (
-                                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
+                                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
                                     {orgType}
                                   </span>
                                 )}
                               </div>
                               {authorName && (
-                                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                                <div className="text-[11px] text-slate-400 flex items-center gap-1">
                                   <User className="h-3 w-3" />
                                   <span>{authorName}</span>
                                 </div>
@@ -498,9 +551,21 @@ export const PublicAlertsPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 text-slate-400 bg-slate-900/60 px-2.5 py-1 rounded-lg border border-slate-800">
-                            <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                            <time dateTime={alert.createdAt}>{formatDate(alert.createdAt)}</time>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleFocusOnMap(alert)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition border border-indigo-200/60 shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                              title="Zlokalizuj to zdarzenie na mapie"
+                            >
+                              <MapPin className="h-3.5 w-3.5 text-indigo-600" />
+                              <span>Pokaż na mapie</span>
+                            </button>
+
+                            <div className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 font-mono text-[11px]">
+                              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                              <time dateTime={alert.createdAt}>{formatDate(alert.createdAt)}</time>
+                            </div>
                           </div>
                         </div>
                       </article>
@@ -515,3 +580,5 @@ export const PublicAlertsPage: React.FC = () => {
     </div>
   );
 };
+
+export default PublicAlertsPage;

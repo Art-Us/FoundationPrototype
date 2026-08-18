@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -19,6 +19,52 @@ export interface AlertHistoryEvent {
   details?: string;
 }
 
+export interface ResourceAllocationRecord {
+  id: string;
+  resourceId?: string;
+  organizationId: string;
+  organizationName: string;
+  userId: string;
+  userName: string;
+  quantity: number;
+  allocatedAt: string;
+  note?: string;
+}
+
+export interface NeededResourceItem {
+  id: string;
+  resourceType: 'ludzie' | 'woda' | 'sprzet' | 'inne' | string;
+  name: string;
+  quantityNeeded: number;
+  quantityAllocated: number;
+  unit: string;
+  urgency?: 'niski' | 'średni' | 'wysoki' | 'krytyczny';
+  allocations?: ResourceAllocationRecord[];
+}
+
+export interface PostChatMessage {
+  id: string;
+  authorId: string;
+  authorName: string;
+  organizationName?: string;
+  role?: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface AlertPostItem {
+  id: string;
+  authorId: string;
+  authorName: string;
+  organizationName?: string;
+  role?: string;
+  title: string;
+  content: string;
+  postType?: 'raport_terenowy' | 'komunikat_sztabowy' | 'logistyka' | 'ogolne' | string;
+  createdAt: string;
+  messages: PostChatMessage[];
+}
+
 export interface AlertMapItem {
   id: string;
   content: string;
@@ -30,6 +76,8 @@ export interface AlertMapItem {
   lat?: number | null;
   lng?: number | null;
   history?: AlertHistoryEvent[] | null;
+  neededResources?: NeededResourceItem[] | null;
+  posts?: AlertPostItem[] | null;
   authorId?: string;
   municipalityId?: string;
   author?: {
@@ -56,6 +104,8 @@ interface AlertsMapProps {
   onDeactivate?: (alertId: string) => void;
   canDeactivate?: (alert: AlertMapItem) => boolean;
   actionLoadingId?: string | null;
+  focusedAlertId?: string | null;
+  focusKey?: number;
 }
 
 // Domyślne współrzędne dla znanych gmin w rejonie
@@ -138,13 +188,45 @@ const FitBoundsToMarkers: React.FC<{
   return null;
 };
 
+// Komponent dynamicznie przenoszący widok mapy i otwierający dymek wskazanego alertu
+const FocusOnAlertController: React.FC<{
+  alertMarkers: { alert: AlertMapItem; position: [number, number] }[];
+  focusedAlertId?: string | null;
+  focusKey?: number;
+  markerRefs: React.MutableRefObject<Record<string, L.Marker>>;
+}> = ({ alertMarkers, focusedAlertId, focusKey, markerRefs }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!focusedAlertId) return;
+
+    const found = alertMarkers.find((m) => m.alert.id === focusedAlertId);
+    if (found) {
+      map.flyTo(found.position, 14, { duration: 1.1 });
+      const timer = setTimeout(() => {
+        const marker = markerRefs.current[focusedAlertId];
+        if (marker) {
+          marker.openPopup();
+        }
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [focusedAlertId, focusKey, alertMarkers, map, markerRefs]);
+
+  return null;
+};
+
 export const AlertsMap: React.FC<AlertsMapProps> = ({
   alerts,
   height = '500px',
   onDeactivate,
   canDeactivate,
   actionLoadingId,
+  focusedAlertId,
+  focusKey,
 }) => {
+  const markerRefs = useRef<Record<string, L.Marker>>({});
+
   // Przeliczenie współrzędnych dla alertów
   const alertMarkers = useMemo(() => {
     return alerts
@@ -203,8 +285,16 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
 
-        {/* Automatyczne dopasowanie widoku do markerów */}
-        <FitBoundsToMarkers positions={positions} />
+        {/* Automatyczne dopasowanie widoku do markerów (gdy brak celowego skupienia) */}
+        {!focusedAlertId && <FitBoundsToMarkers positions={positions} />}
+
+        {/* Kontroler dynamicznego przelotu do wskazanego alertu */}
+        <FocusOnAlertController
+          alertMarkers={alertMarkers}
+          focusedAlertId={focusedAlertId}
+          focusKey={focusKey}
+          markerRefs={markerRefs}
+        />
 
         {/* Renderowanie markerów alertów */}
         {alertMarkers.map(({ alert, position }) => {
@@ -216,6 +306,11 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
               key={alert.id}
               position={position}
               icon={createCrisisIcon(alert.category, alert.isActive)}
+              ref={(ref) => {
+                if (ref) {
+                  markerRefs.current[alert.id] = ref;
+                }
+              }}
             >
               <Popup className="crisis-leaflet-popup">
                 <div className="p-1 max-w-xs sm:max-w-sm space-y-3 font-sans">
@@ -247,6 +342,27 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
                       <time>{formatDate(alert.createdAt)}</time>
                     </div>
                   </div>
+
+                  {Array.isArray(alert.neededResources) && alert.neededResources.length > 0 && (
+                    <div className="pt-1.5 border-t border-slate-100">
+                      <div className="text-[10px] font-bold uppercase text-amber-700 mb-1 flex items-center gap-1">
+                        <span>Zapotrzebowanie na zasoby:</span>
+                      </div>
+                      <div className="space-y-1">
+                        {alert.neededResources.map((nr) => (
+                          <div
+                            key={nr.id}
+                            className="flex items-center justify-between text-[11px] bg-amber-50/70 border border-amber-200/60 rounded-lg px-2 py-0.5"
+                          >
+                            <span className="font-semibold text-slate-800 truncate">{nr.name}</span>
+                            <span className="font-mono text-slate-600 shrink-0 ml-1">
+                              {nr.quantityAllocated} / {nr.quantityNeeded} {nr.unit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {isAllowedToDeactivate && onDeactivate && (
                     <button

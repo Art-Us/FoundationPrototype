@@ -33,7 +33,6 @@ export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  // Pobranie listy organizacji z publicznego endpointu API
   useEffect(() => {
     const fetchOrganizations = async () => {
       try {
@@ -90,31 +89,31 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-65px)] items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div className="flex min-h-[calc(100vh-65px)] items-center justify-center p-4 sm:p-6 lg:p-8 bg-[#f4f7fb]">
       <div className="w-full max-w-lg space-y-6">
-        <div className="rounded-3xl bg-slate-800/80 p-8 shadow-2xl backdrop-blur-xl border border-slate-700/60">
+        <div className="rounded-3xl bg-white p-8 shadow-sm border border-slate-200/80">
           <div className="text-center mb-6">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-500/10 text-teal-400 mb-4 ring-1 ring-teal-500/30">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 mb-4 shadow-xs">
               <UserPlus className="h-7 w-7" />
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Dołącz do platformy</h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Zarejestruj swoje konto członka organizacji ratunkowej lub samorządowej
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dołącz do platformy</h1>
+            <p className="text-xs text-slate-500 mt-1">
+              Zarejestruj konto członka organizacji ratunkowej, straży lub samorządu
             </p>
           </div>
 
           {/* Komunikat o sukcesie */}
           {successMessage ? (
-            <div className="rounded-2xl bg-emerald-500/10 p-6 border border-emerald-500/30 text-center space-y-4">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+            <div className="rounded-2xl bg-emerald-50 p-6 border border-emerald-200 text-center space-y-4">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white mb-1">Rejestracja zakończona</h3>
-                <p className="text-sm text-emerald-200">{successMessage}</p>
+                <h3 className="text-base font-bold text-slate-900 mb-1">Rejestracja zakończona</h3>
+                <p className="text-xs text-emerald-800">{successMessage}</p>
               </div>
-              <div className="p-3 bg-slate-900/60 rounded-xl text-xs text-slate-300 text-left border border-slate-700/50 flex items-start gap-2">
-                <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="p-3 bg-white rounded-xl text-xs text-slate-600 text-left border border-emerald-100 flex items-start gap-2 shadow-xs">
+                <ShieldAlert className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                 <span>
                   Administrator otrzymał powiadomienie o Twojej rejestracji. Po zaakceptowaniu konta uzyskasz pełny dostęp do systemu.
                 </span>
@@ -122,7 +121,7 @@ export const RegisterPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/login')}
-                className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-3 text-sm font-semibold transition"
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white py-3 text-xs font-bold transition shadow-sm"
               >
                 <span>Przejdź do logowania</span>
                 <ArrowRight className="h-4 w-4" />
@@ -131,8 +130,8 @@ export const RegisterPage: React.FC = () => {
           ) : (
             <>
               {errorMessage && (
-                <div className="mb-6 flex items-start gap-3 rounded-xl bg-red-500/10 p-4 border border-red-500/20 text-red-300 text-sm">
-                  <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                <div className="mb-6 flex items-start gap-3 rounded-2xl bg-red-50 p-4 border border-red-200 text-red-700 text-xs">
+                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
                   <div className="flex-1 font-medium">{errorMessage}</div>
                 </div>
               )}
@@ -140,7 +139,7 @@ export const RegisterPage: React.FC = () => {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                       Imię
                     </label>
                     <input
@@ -149,12 +148,12 @@ export const RegisterPage: React.FC = () => {
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       placeholder="Jan"
-                      className="w-full rounded-xl bg-slate-900/80 border border-slate-700 py-2.5 px-3.5 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm transition"
+                      className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 text-xs sm:text-sm transition"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                       Nazwisko
                     </label>
                     <input
@@ -163,13 +162,13 @@ export const RegisterPage: React.FC = () => {
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       placeholder="Kowalski"
-                      className="w-full rounded-xl bg-slate-900/80 border border-slate-700 py-2.5 px-3.5 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm transition"
+                      className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 text-xs sm:text-sm transition"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                     Adres E-mail
                   </label>
                   <div className="relative">
@@ -180,14 +179,14 @@ export const RegisterPage: React.FC = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="jan.kowalski@osp.pl"
-                      className="w-full rounded-xl bg-slate-900/80 border border-slate-700 py-2.5 pl-10 pr-3.5 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm transition"
+                      className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 pl-10 pr-3.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 text-xs sm:text-sm transition"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                       Hasło
                     </label>
                     <div className="relative">
@@ -199,13 +198,13 @@ export const RegisterPage: React.FC = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Min. 6 znaków"
-                        className="w-full rounded-xl bg-slate-900/80 border border-slate-700 py-2.5 pl-10 pr-3.5 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm transition"
+                        className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 pl-10 pr-3.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 text-xs sm:text-sm transition"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                       Telefon kontaktowy
                     </label>
                     <div className="relative">
@@ -216,7 +215,7 @@ export const RegisterPage: React.FC = () => {
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+48 500 100 200"
-                        className="w-full rounded-xl bg-slate-900/80 border border-slate-700 py-2.5 pl-10 pr-3.5 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm transition"
+                        className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 pl-10 pr-3.5 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 text-xs sm:text-sm transition"
                       />
                     </div>
                   </div>
@@ -224,7 +223,7 @@ export const RegisterPage: React.FC = () => {
 
                 {/* Wybór organizacji */}
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                     Organizacja / Jednostka
                   </label>
                   <div className="relative">
@@ -234,7 +233,7 @@ export const RegisterPage: React.FC = () => {
                       onChange={(e) => setOrganizationId(e.target.value)}
                       disabled={isLoadingOrgs}
                       required
-                      className="w-full appearance-none rounded-xl bg-slate-900/80 border border-slate-700 py-2.5 pl-10 pr-8 text-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-sm transition"
+                      className="w-full appearance-none rounded-xl bg-slate-50 border border-slate-200 py-2.5 pl-10 pr-8 text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 text-xs sm:text-sm transition font-medium"
                     >
                       {isLoadingOrgs ? (
                         <option value="">Ładowanie organizacji...</option>
@@ -242,13 +241,13 @@ export const RegisterPage: React.FC = () => {
                         <option value="">Brak dostępnych organizacji</option>
                       ) : (
                         organizations.map((org) => (
-                          <option key={org.id} value={org.id} className="bg-slate-900 text-white">
+                          <option key={org.id} value={org.id}>
                             {org.name} ({org.type.toUpperCase()}) {org.municipality ? `– ${org.municipality.name}` : ''}
                           </option>
                         ))
                       )}
                     </select>
-                    <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                    <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">
                       ▼
                     </div>
                   </div>
@@ -256,7 +255,7 @@ export const RegisterPage: React.FC = () => {
 
                 {/* Rola w systemie */}
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                     Wnioskowana rola
                   </label>
                   <div className="grid grid-cols-3 gap-2">
@@ -265,10 +264,10 @@ export const RegisterPage: React.FC = () => {
                         key={r}
                         type="button"
                         onClick={() => setRole(r)}
-                        className={`rounded-xl py-2 px-3 text-xs font-semibold capitalize border transition ${
+                        className={`rounded-xl py-2 px-3 text-xs font-bold capitalize border transition ${
                           role === r
-                            ? 'bg-brand-600/20 border-brand-500 text-brand-400 ring-1 ring-brand-500'
-                            : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:text-white'
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                         }`}
                       >
                         {r}
@@ -280,7 +279,7 @@ export const RegisterPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting || isLoadingOrgs}
-                  className="w-full mt-4 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-600 to-brand-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/25 hover:from-teal-500 hover:to-brand-400 focus:outline-none focus:ring-2 focus:ring-teal-500/40 disabled:opacity-50 transition transform active:scale-[0.99]"
+                  className="w-full mt-4 flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-3.5 text-xs sm:text-sm font-bold text-white shadow-sm shadow-indigo-600/25 disabled:opacity-50 transition transform active:scale-[0.99]"
                 >
                   {isSubmitting ? (
                     <>
@@ -296,9 +295,9 @@ export const RegisterPage: React.FC = () => {
                 </button>
               </form>
 
-              <div className="mt-6 text-center text-sm text-slate-400">
+              <div className="mt-6 text-center text-xs text-slate-500">
                 Masz już konto?{' '}
-                <Link to="/login" className="font-semibold text-brand-400 hover:text-brand-300 underline underline-offset-4">
+                <Link to="/login" className="font-bold text-indigo-600 hover:underline">
                   Zaloguj się
                 </Link>
               </div>
@@ -309,3 +308,5 @@ export const RegisterPage: React.FC = () => {
     </div>
   );
 };
+
+export default RegisterPage;
