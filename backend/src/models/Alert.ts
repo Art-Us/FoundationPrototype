@@ -10,6 +10,52 @@ export interface AlertHistoryEvent {
   details?: string;
 }
 
+export interface ResourceAllocationRecord {
+  id: string;
+  resourceId?: string;
+  organizationId: string;
+  organizationName: string;
+  userId: string;
+  userName: string;
+  quantity: number;
+  allocatedAt: string;
+  note?: string;
+}
+
+export interface NeededResourceItem {
+  id: string;
+  resourceType: 'ludzie' | 'woda' | 'sprzet' | 'inne' | string;
+  name: string;
+  quantityNeeded: number;
+  quantityAllocated: number;
+  unit: string;
+  urgency?: 'niski' | 'średni' | 'wysoki' | 'krytyczny';
+  allocations?: ResourceAllocationRecord[];
+}
+
+export interface PostChatMessage {
+  id: string;
+  authorId: string;
+  authorName: string;
+  organizationName?: string;
+  role?: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface AlertPostItem {
+  id: string;
+  authorId: string;
+  authorName: string;
+  organizationName?: string;
+  role?: string;
+  title: string;
+  content: string;
+  postType?: 'raport_terenowy' | 'komunikat_sztabowy' | 'logistyka' | 'ogolne' | string;
+  createdAt: string;
+  messages: PostChatMessage[];
+}
+
 export interface AlertAttributes {
   id: string;
   content: string;
@@ -23,6 +69,8 @@ export interface AlertAttributes {
   lat?: number | null;
   lng?: number | null;
   history?: AlertHistoryEvent[] | null;
+  neededResources?: NeededResourceItem[] | null;
+  posts?: AlertPostItem[] | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -38,6 +86,8 @@ export interface AlertCreationAttributes
     | 'lat'
     | 'lng'
     | 'history'
+    | 'neededResources'
+    | 'posts'
     | 'createdAt'
     | 'updatedAt'
   > {}
@@ -58,6 +108,8 @@ export class Alert
   declare lat: number | null;
   declare lng: number | null;
   declare history: AlertHistoryEvent[] | null;
+  declare neededResources: NeededResourceItem[] | null;
+  declare posts: AlertPostItem[] | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 }
@@ -125,6 +177,16 @@ Alert.init(
       allowNull: true,
     },
     history: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: [],
+    },
+    neededResources: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: [],
+    },
+    posts: {
       type: DataTypes.JSON,
       allowNull: true,
       defaultValue: [],

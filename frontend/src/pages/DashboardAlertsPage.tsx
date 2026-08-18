@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
@@ -30,6 +31,10 @@ import {
   History,
   Calendar,
   ArrowUpDown,
+  Plus,
+  Trash2,
+  PackageCheck,
+  MessageSquare,
 } from 'lucide-react';
 
 const CATEGORY_OPTIONS = [
@@ -41,6 +46,15 @@ const CATEGORY_OPTIONS = [
   'Informacja ogólna',
 ];
 
+export interface NeededResourceDraft {
+  id: string;
+  resourceType: 'ludzie' | 'woda' | 'sprzet' | 'inne';
+  name: string;
+  quantityNeeded: number;
+  unit: string;
+  urgency: 'niski' | 'średni' | 'wysoki' | 'krytyczny';
+}
+
 type AlertTimeframe = '24h' | '48h' | '72h' | 'tydzien' | 'miesiac' | 'rok' | 'wszystkie' | 'custom';
 type AlertSortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'duration-desc' | 'duration-asc';
 type ArchiveTimeframe = AlertTimeframe;
@@ -48,6 +62,7 @@ type ArchiveSortOption = AlertSortOption;
 
 export const DashboardAlertsPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [alerts, setAlerts] = useState<AlertMapItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,7 +75,32 @@ export const DashboardAlertsPage: React.FC = () => {
   const [voivodeship, setVoivodeship] = useState('');
   const [lat, setLat] = useState<string>('');
   const [lng, setLng] = useState<string>('');
+  const [neededResourcesDraft, setNeededResourcesDraft] = useState<NeededResourceDraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const addNeededResourceRow = () => {
+    setNeededResourcesDraft((prev) => [
+      ...prev,
+      {
+        id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        resourceType: 'woda',
+        name: 'Woda butelkowana 1.5L',
+        quantityNeeded: 100,
+        unit: 'szt.',
+        urgency: 'wysoki',
+      },
+    ]);
+  };
+
+  const updateNeededResourceRow = (id: string, field: keyof NeededResourceDraft, value: any) => {
+    setNeededResourcesDraft((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const removeNeededResourceRow = (id: string) => {
+    setNeededResourcesDraft((prev) => prev.filter((item) => item.id !== id));
+  };
 
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(true);
@@ -109,7 +149,34 @@ export const DashboardAlertsPage: React.FC = () => {
   const [editVoivodeship, setEditVoivodeship] = useState('');
   const [editLat, setEditLat] = useState<string>('');
   const [editLng, setEditLng] = useState<string>('');
+  const [editNeededResources, setEditNeededResources] = useState<any[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const addEditNeededResourceRow = () => {
+    setEditNeededResources((prev) => [
+      ...prev,
+      {
+        id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        resourceType: 'woda',
+        name: 'Woda pitna 1.5L',
+        quantityNeeded: 100,
+        quantityAllocated: 0,
+        unit: 'szt.',
+        urgency: 'wysoki',
+        allocations: [],
+      },
+    ]);
+  };
+
+  const updateEditNeededResourceRow = (id: string, field: string, value: any) => {
+    setEditNeededResources((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const removeEditNeededResourceRow = (id: string) => {
+    setEditNeededResources((prev) => prev.filter((item) => item.id !== id));
+  };
 
   // System powiadomień Toast
   const [toast, setToast] = useState<{
@@ -168,6 +235,27 @@ export const DashboardAlertsPage: React.FC = () => {
         payload.lng = parseFloat(lng);
       }
 
+      if (neededResourcesDraft.length > 0) {
+        payload.neededResources = neededResourcesDraft.map((nr) => ({
+          id: nr.id,
+          resourceType: nr.resourceType || 'woda',
+          name:
+            nr.name.trim() ||
+            (nr.resourceType === 'woda'
+              ? 'Woda / Prowiant'
+              : nr.resourceType === 'sprzet'
+              ? 'Sprzęt ratunkowy'
+              : nr.resourceType === 'ludzie'
+              ? 'Ratownicy / Wolontariusze'
+              : 'Zasób ratunkowy'),
+          quantityNeeded: Math.max(1, Number(nr.quantityNeeded) || 1),
+          quantityAllocated: 0,
+          unit: (nr.unit || 'szt.').trim(),
+          urgency: nr.urgency || 'wysoki',
+          allocations: [],
+        }));
+      }
+
       const res = await api.post('/alerts', payload);
 
       if (res.data.success && res.data.data) {
@@ -178,7 +266,8 @@ export const DashboardAlertsPage: React.FC = () => {
         setVoivodeship('');
         setLat('');
         setLng('');
-        showToast('Alert został pomyślnie opublikowany!');
+        setNeededResourcesDraft([]);
+        showToast('Alert wraz z zapotrzebowaniem został pomyślnie opublikowany!');
       }
     } catch (error: any) {
       console.error('Błąd dodawania alertu:', error);
@@ -249,6 +338,11 @@ export const DashboardAlertsPage: React.FC = () => {
     setEditVoivodeship(alert.voivodeship || '');
     setEditLat(alert.lat !== undefined && alert.lat !== null ? alert.lat.toString() : '');
     setEditLng(alert.lng !== undefined && alert.lng !== null ? alert.lng.toString() : '');
+    setEditNeededResources(
+      Array.isArray(alert.neededResources)
+        ? JSON.parse(JSON.stringify(alert.neededResources))
+        : []
+    );
   };
 
   // 5. Zapisywanie edycji alertu
@@ -266,6 +360,12 @@ export const DashboardAlertsPage: React.FC = () => {
         voivodeship: editVoivodeship.trim() || null,
         lat: editLat ? parseFloat(editLat) : null,
         lng: editLng ? parseFloat(editLng) : null,
+        neededResources: editNeededResources.map((nr) => ({
+          ...nr,
+          name: nr.name.trim() || 'Zasób ratunkowy',
+          quantityNeeded: Math.max(1, Number(nr.quantityNeeded) || 1),
+          quantityAllocated: Number(nr.quantityAllocated) || 0,
+        })),
       };
 
       const res = await api.put(`/alerts/${editingAlert.id}`, payload);
@@ -273,7 +373,7 @@ export const DashboardAlertsPage: React.FC = () => {
         setAlerts((prev) =>
           prev.map((a) => (a.id === editingAlert.id ? res.data.data : a))
         );
-        showToast('Komunikat został pomyślnie zaktualizowany!');
+        showToast('Komunikat i zapotrzebowanie zostały pomyślnie zaktualizowane!');
         setEditingAlert(null);
       }
     } catch (error: any) {
@@ -794,26 +894,172 @@ export const DashboardAlertsPage: React.FC = () => {
                   }}
                 />
               </div>
+            </div>
 
-              <div className="flex justify-end pt-1">
+            {/* Sekcja zapotrzebowania na zasoby (Needed Resources Builder) */}
+            <div className="lg:col-span-12 border-t border-slate-100 pt-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <PackageCheck className="h-4 w-4 text-amber-600" />
+                    <span>Zapotrzebowanie na zasoby (Zapytania / Potrzebne wsparcie)</span>
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Określ czego i w jakiej ilości potrzebują służby na miejscu zdarzenia (np. woda, agregaty, pompy, ratownicy). Inne jednostki będą mogły przydzielić swoje zasoby.
+                  </p>
+                </div>
+
                 <button
-                  type="submit"
-                  disabled={isSubmitting || !content.trim()}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-3 text-xs font-bold text-white shadow-sm shadow-indigo-600/25 disabled:opacity-50 transition transform active:scale-95"
+                  type="button"
+                  onClick={addNeededResourceRow}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200/80 transition cursor-pointer self-start sm:self-auto"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                      <span>Publikowanie...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4" />
-                      <span>Opublikuj alert na mapie</span>
-                    </>
-                  )}
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Dodaj zapotrzebowanie</span>
                 </button>
               </div>
+
+              {neededResourcesDraft.length === 0 ? (
+                <div className="rounded-2xl bg-slate-50/80 p-3.5 border border-dashed border-slate-200 text-center">
+                  <p className="text-xs text-slate-500">
+                    Brak zdefiniowanego zapotrzebowania. Jeśli zdarzenie wymaga wsparcia sprzętowego lub ludzkiego, kliknij „Dodaj zapotrzebowanie”.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {neededResourcesDraft.map((nr) => (
+                    <div
+                      key={nr.id}
+                      className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center bg-slate-50 p-3 rounded-2xl border border-slate-200"
+                    >
+                      {/* Typ zasobu */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                          Typ
+                        </label>
+                        <select
+                          value={nr.resourceType}
+                          onChange={(e) =>
+                            updateNeededResourceRow(nr.id, 'resourceType', e.target.value as any)
+                          }
+                          className="w-full rounded-lg bg-white border border-slate-300 py-1.5 px-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="woda">💧 Woda / Prowiant</option>
+                          <option value="sprzet">🛠️ Sprzęt / Pompy</option>
+                          <option value="ludzie">👷 Ludzie / Ratownicy</option>
+                          <option value="inne">📦 Inne zasoby</option>
+                        </select>
+                      </div>
+
+                      {/* Nazwa/Opis zasobu */}
+                      <div className="sm:col-span-4">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                          Nazwa / Opis zasobu
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={nr.name}
+                          onChange={(e) =>
+                            updateNeededResourceRow(nr.id, 'name', e.target.value)
+                          }
+                          placeholder="np. Woda butelkowana 1.5L, Pompa szlamowa"
+                          className="w-full rounded-lg bg-white border border-slate-300 py-1.5 px-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      {/* Ilość */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                          Potrzebna ilość
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={nr.quantityNeeded}
+                          onChange={(e) =>
+                            updateNeededResourceRow(
+                              nr.id,
+                              'quantityNeeded',
+                              Math.max(1, parseInt(e.target.value) || 1)
+                            )
+                          }
+                          className="w-full rounded-lg bg-white border border-slate-300 py-1.5 px-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      {/* Jednostka */}
+                      <div className="sm:col-span-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                          Jedn.
+                        </label>
+                        <input
+                          type="text"
+                          value={nr.unit}
+                          onChange={(e) =>
+                            updateNeededResourceRow(nr.id, 'unit', e.target.value)
+                          }
+                          placeholder="szt."
+                          className="w-full rounded-lg bg-white border border-slate-300 py-1.5 px-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      {/* Pilność */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                          Pilność
+                        </label>
+                        <select
+                          value={nr.urgency}
+                          onChange={(e) =>
+                            updateNeededResourceRow(nr.id, 'urgency', e.target.value as any)
+                          }
+                          className="w-full rounded-lg bg-white border border-slate-300 py-1.5 px-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="niski">Niski</option>
+                          <option value="średni">Średni</option>
+                          <option value="wysoki">Wysoki</option>
+                          <option value="krytyczny">🚨 Krytyczny</option>
+                        </select>
+                      </div>
+
+                      {/* Usuń */}
+                      <div className="sm:col-span-1 flex justify-end pt-3 sm:pt-0">
+                        <button
+                          type="button"
+                          onClick={() => removeNeededResourceRow(nr.id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                          title="Usuń pozycję"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Przycisk publikacji */}
+            <div className="lg:col-span-12 flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={isSubmitting || !content.trim()}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-8 py-3 text-xs font-bold text-white shadow-sm shadow-indigo-600/25 disabled:opacity-50 transition transform active:scale-95 cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    <span>Publikowanie...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    <span>Opublikuj alert na mapie</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </form>
@@ -1033,6 +1279,49 @@ export const DashboardAlertsPage: React.FC = () => {
                       {alert.content}
                     </p>
 
+                    {/* Zapotrzebowanie na zasoby */}
+                    {Array.isArray(alert.neededResources) && alert.neededResources.length > 0 && (
+                      <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                          <span className="flex items-center gap-1.5">
+                            <PackageCheck className="h-3.5 w-3.5 text-amber-700" />
+                            <span>Zapotrzebowanie na zasoby ({alert.neededResources.length})</span>
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          {alert.neededResources.map((nr) => {
+                            const pct = Math.min(
+                              100,
+                              Math.round(((nr.quantityAllocated || 0) / nr.quantityNeeded) * 100)
+                            );
+                            return (
+                              <div key={nr.id} className="space-y-1">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="font-semibold text-slate-800">{nr.name}</span>
+                                  <span className="font-mono text-slate-600 font-bold">
+                                    {nr.quantityAllocated || 0} / {nr.quantityNeeded} {nr.unit} ({pct}%)
+                                  </span>
+                                </div>
+                                <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                                      pct >= 100
+                                        ? 'bg-emerald-500'
+                                        : pct > 0
+                                        ? 'bg-amber-500'
+                                        : 'bg-slate-300'
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-slate-500 pt-2 border-t border-slate-100">
                       <div className="flex items-center gap-1">
                         <Building className="h-3.5 w-3.5 text-slate-400" />
@@ -1048,6 +1337,16 @@ export const DashboardAlertsPage: React.FC = () => {
 
                   {/* Przyciski Akcji */}
                   <div className="flex flex-wrap items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/dashboard/operational/alerts/${alert.id}`)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                      title="Przejdź do wpisów, forum i szczegółów tego alertu"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 text-indigo-400" />
+                      <span>Wpisy i Forum ({Array.isArray(alert.posts) ? alert.posts.length : 0})</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleFocusOnMap(alert)}
@@ -1316,8 +1615,18 @@ export const DashboardAlertsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Przyciski: HISTORIA, EDYTUJ i WZNÓW KOMUNIKAT */}
-                  <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+                  {/* Przyciski: WPISY, HISTORIA, EDYTUJ i WZNÓW KOMUNIKAT */}
+                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/dashboard/operational/alerts/${alert.id}`)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                      title="Przejdź do wpisów, forum i szczegółów tego alertu"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 text-indigo-400" />
+                      <span>Wpisy ({Array.isArray(alert.posts) ? alert.posts.length : 0})</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setSelectedHistoryAlert(alert)}
@@ -1506,6 +1815,145 @@ export const DashboardAlertsPage: React.FC = () => {
                     className="w-full rounded-xl bg-slate-50 border border-slate-200 py-1.5 px-3 text-xs text-slate-900 font-mono"
                   />
                 </div>
+              </div>
+
+              {/* Sekcja edycji zapotrzebowania na zasoby */}
+              <div className="border-t border-slate-100 pt-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <PackageCheck className="h-4 w-4 text-amber-600" />
+                      <span>Zapotrzebowanie na zasoby ({editNeededResources.length})</span>
+                    </label>
+                    <p className="text-[10px] text-slate-500">
+                      Dodawaj, edytuj lub usuwaj pozycje zapotrzebowania dla tego alertu.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addEditNeededResourceRow}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold border border-amber-200 transition cursor-pointer"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>+ Dodaj potrzebę</span>
+                  </button>
+                </div>
+
+                {editNeededResources.length === 0 ? (
+                  <div className="rounded-xl bg-slate-50 p-3 border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                    Brak zdefiniowanego zapotrzebowania dla tego alertu. Kliknij „+ Dodaj potrzebę”.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {editNeededResources.map((nr) => (
+                      <div
+                        key={nr.id}
+                        className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2"
+                      >
+                        <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="col-span-3">
+                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">
+                              Typ
+                            </label>
+                            <select
+                              value={nr.resourceType}
+                              onChange={(e) =>
+                                updateEditNeededResourceRow(nr.id, 'resourceType', e.target.value)
+                              }
+                              className="w-full rounded-lg bg-white border border-slate-300 py-1 px-1.5 text-[11px] font-semibold text-slate-800"
+                            >
+                              <option value="woda">💧 Woda</option>
+                              <option value="sprzet">🛠️ Sprzęt</option>
+                              <option value="ludzie">👷 Ludzie</option>
+                              <option value="inne">📦 Inne</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-4">
+                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">
+                              Nazwa zasobu
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={nr.name}
+                              onChange={(e) =>
+                                updateEditNeededResourceRow(nr.id, 'name', e.target.value)
+                              }
+                              placeholder="Nazwa zasobu"
+                              className="w-full rounded-lg bg-white border border-slate-300 py-1 px-2 text-[11px] text-slate-900"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">
+                              Ilość
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              required
+                              value={nr.quantityNeeded}
+                              onChange={(e) =>
+                                updateEditNeededResourceRow(
+                                  nr.id,
+                                  'quantityNeeded',
+                                  Math.max(1, parseInt(e.target.value) || 1)
+                                )
+                              }
+                              className="w-full rounded-lg bg-white border border-slate-300 py-1 px-1.5 text-[11px] font-bold text-slate-900"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">
+                              Pilność
+                            </label>
+                            <select
+                              value={nr.urgency}
+                              onChange={(e) =>
+                                updateEditNeededResourceRow(nr.id, 'urgency', e.target.value)
+                              }
+                              className="w-full rounded-lg bg-white border border-slate-300 py-1 px-1 text-[10px] font-semibold text-slate-800"
+                            >
+                              <option value="niski">Niski</option>
+                              <option value="średni">Średni</option>
+                              <option value="wysoki">Wysoki</option>
+                              <option value="krytyczny">Krytyczny</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-1 flex justify-end pt-3">
+                            <button
+                              type="button"
+                              onClick={() => removeEditNeededResourceRow(nr.id)}
+                              className="text-slate-400 hover:text-red-600 p-1 transition"
+                              title="Usuń tę potrzebę"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Informacja o dotychczasowych przydziałach */}
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-200/60">
+                          <span>
+                            Zrealizowano:{' '}
+                            <strong className="text-emerald-700 font-mono font-bold">
+                              {nr.quantityAllocated || 0} / {nr.quantityNeeded} {nr.unit || 'szt.'}
+                            </strong>
+                          </span>
+                          {nr.allocations && nr.allocations.length > 0 && (
+                            <span className="text-indigo-600 font-medium">
+                              Liczba dostawców: {nr.allocations.length}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">

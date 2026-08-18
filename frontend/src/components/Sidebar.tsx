@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ShieldAlert,
   LogOut,
+  Layers,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -93,6 +94,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
                 <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Panel Operacyjny
                 </div>
+
+                <NavLink
+                  to="/dashboard/operational"
+                  onClick={onCloseMobile}
+                  className={navLinkClasses}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100 transition">
+                      <Layers className="h-4 w-4" />
+                    </div>
+                    <span>Dyspozytornia i Zasoby</span>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </NavLink>
 
                 <NavLink
                   to="/dashboard/alerts"

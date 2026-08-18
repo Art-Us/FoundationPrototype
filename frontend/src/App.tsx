@@ -10,6 +10,8 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DashboardAlertsPage } from './pages/DashboardAlertsPage';
 import { DashboardResourcesPage } from './pages/DashboardResourcesPage';
+import { OperationalAlertsPage } from './pages/OperationalAlertsPage';
+import { AlertDetailsPage } from './pages/AlertDetailsPage';
 import { PublicAlertsPage } from './pages/PublicAlertsPage';
 
 export const App: React.FC = () => {
@@ -37,10 +39,34 @@ export const App: React.FC = () => {
               }
             />
             <Route
+              path="/dashboard/operational"
+              element={
+                <ProtectedRoute>
+                  <OperationalAlertsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/operational/alerts/:id"
+              element={
+                <ProtectedRoute>
+                  <AlertDetailsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/dashboard/alerts"
               element={
                 <ProtectedRoute>
                   <DashboardAlertsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/alerts/:id"
+              element={
+                <ProtectedRoute>
+                  <AlertDetailsPage />
                 </ProtectedRoute>
               }
             />

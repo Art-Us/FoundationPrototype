@@ -19,6 +19,52 @@ export interface AlertHistoryEvent {
   details?: string;
 }
 
+export interface ResourceAllocationRecord {
+  id: string;
+  resourceId?: string;
+  organizationId: string;
+  organizationName: string;
+  userId: string;
+  userName: string;
+  quantity: number;
+  allocatedAt: string;
+  note?: string;
+}
+
+export interface NeededResourceItem {
+  id: string;
+  resourceType: 'ludzie' | 'woda' | 'sprzet' | 'inne' | string;
+  name: string;
+  quantityNeeded: number;
+  quantityAllocated: number;
+  unit: string;
+  urgency?: 'niski' | 'średni' | 'wysoki' | 'krytyczny';
+  allocations?: ResourceAllocationRecord[];
+}
+
+export interface PostChatMessage {
+  id: string;
+  authorId: string;
+  authorName: string;
+  organizationName?: string;
+  role?: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface AlertPostItem {
+  id: string;
+  authorId: string;
+  authorName: string;
+  organizationName?: string;
+  role?: string;
+  title: string;
+  content: string;
+  postType?: 'raport_terenowy' | 'komunikat_sztabowy' | 'logistyka' | 'ogolne' | string;
+  createdAt: string;
+  messages: PostChatMessage[];
+}
+
 export interface AlertMapItem {
   id: string;
   content: string;
@@ -30,6 +76,8 @@ export interface AlertMapItem {
   lat?: number | null;
   lng?: number | null;
   history?: AlertHistoryEvent[] | null;
+  neededResources?: NeededResourceItem[] | null;
+  posts?: AlertPostItem[] | null;
   authorId?: string;
   municipalityId?: string;
   author?: {
@@ -294,6 +342,27 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
                       <time>{formatDate(alert.createdAt)}</time>
                     </div>
                   </div>
+
+                  {Array.isArray(alert.neededResources) && alert.neededResources.length > 0 && (
+                    <div className="pt-1.5 border-t border-slate-100">
+                      <div className="text-[10px] font-bold uppercase text-amber-700 mb-1 flex items-center gap-1">
+                        <span>Zapotrzebowanie na zasoby:</span>
+                      </div>
+                      <div className="space-y-1">
+                        {alert.neededResources.map((nr) => (
+                          <div
+                            key={nr.id}
+                            className="flex items-center justify-between text-[11px] bg-amber-50/70 border border-amber-200/60 rounded-lg px-2 py-0.5"
+                          >
+                            <span className="font-semibold text-slate-800 truncate">{nr.name}</span>
+                            <span className="font-mono text-slate-600 shrink-0 ml-1">
+                              {nr.quantityAllocated} / {nr.quantityNeeded} {nr.unit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {isAllowedToDeactivate && onDeactivate && (
                     <button
