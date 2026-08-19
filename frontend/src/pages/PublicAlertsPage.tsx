@@ -255,6 +255,22 @@ export const PublicAlertsPage: React.FC = () => {
     };
   };
 
+  const handleNavigateToCard = (alert: AlertMapItem) => {
+    if (viewMode === 'map') {
+      setViewMode('split');
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`alert-card-${alert.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-indigo-400', 'transition-all');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-indigo-400');
+        }, 2500);
+      }
+    }, 100);
+  };
+
   return (
     <div className="space-y-6">
       {/* 1. Header Hero Banner */}
@@ -502,6 +518,7 @@ export const PublicAlertsPage: React.FC = () => {
                 onModeChange={setMapMode}
                 availableModes={['category', 'severity']}
                 showNeededResourcesInPopup={false}
+                onNavigateToCard={handleNavigateToCard}
               />
             </section>
           )}
@@ -556,6 +573,7 @@ export const PublicAlertsPage: React.FC = () => {
                     return (
                       <article
                         key={alert.id}
+                        id={`alert-card-${alert.id}`}
                         className="group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition duration-200"
                       >
                         {/* Górna belka karty: Badge Krytyczności, Kategoria & Rozbudowana Lokalizacja */}

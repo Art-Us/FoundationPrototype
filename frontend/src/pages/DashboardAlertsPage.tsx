@@ -1385,6 +1385,7 @@ export const DashboardAlertsPage: React.FC = () => {
               return (
                 <div
                   key={alert.id}
+                  id={`alert-card-${alert.id}`}
                   className="rounded-3xl bg-white p-6 shadow-xs border border-red-200 hover:border-red-400 hover:shadow-md transition duration-200 flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-3">

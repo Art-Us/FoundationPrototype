@@ -788,17 +788,16 @@ export const AlertDetailsPage: React.FC = () => {
                           </span>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => openAllocationModal(nr)}
-                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer ${
-                            isFulfilled
-                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          }`}
-                        >
-                          {isFulfilled ? '+ Dodaj więcej' : 'Przydziel zasoby'}
-                        </button>
+                        {!isFulfilled && (
+                          <button
+                            type="button"
+                            onClick={() => openAllocationModal(nr)}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                          >
+                            <PackageCheck className="h-3.5 w-3.5" />
+                            <span>Przydziel zasoby</span>
+                          </button>
+                        )}
                       </div>
 
                       <div className="space-y-1">

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -11,6 +12,8 @@ import {
   Layers,
   Flame,
   Boxes,
+  FileText,
+  ArrowRight,
 } from 'lucide-react';
 
 export type MapDisplayMode = 'category' | 'severity' | 'resource_urgency';
@@ -118,6 +121,7 @@ interface AlertsMapProps {
   onModeChange?: (mode: MapDisplayMode) => void;
   availableModes?: MapDisplayMode[];
   showNeededResourcesInPopup?: boolean;
+  onNavigateToCard?: (alert: AlertMapItem) => void;
 }
 
 // Domyślne współrzędne dla znanych gmin w rejonie
@@ -385,7 +389,9 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
   onModeChange,
   availableModes = ['category', 'severity', 'resource_urgency'],
   showNeededResourcesInPopup = true,
+  onNavigateToCard,
 }) => {
+  const navigate = useNavigate();
   const initialMode = availableModes.includes(defaultMode) ? defaultMode : availableModes[0] || 'severity';
   const [internalMode, setInternalMode] = useState<MapDisplayMode>(initialMode);
   const activeMode = controlledMode !== undefined ? controlledMode : internalMode;
@@ -395,6 +401,25 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
     if (onModeChange) {
       onModeChange(newMode);
     }
+  };
+
+  const handleGoToCard = (targetAlert: AlertMapItem) => {
+    if (onNavigateToCard) {
+      onNavigateToCard(targetAlert);
+      return;
+    }
+
+    const cardElement = document.getElementById(`alert-card-${targetAlert.id}`);
+    if (cardElement) {
+      cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      cardElement.classList.add('ring-4', 'ring-indigo-400', 'transition-all');
+      setTimeout(() => {
+        cardElement.classList.remove('ring-4', 'ring-indigo-400');
+      }, 2500);
+      return;
+    }
+
+    navigate(`/dashboard/alerts/${targetAlert.id}`);
   };
 
   const markerRefs = useRef<Record<string, L.Marker>>({});
@@ -641,12 +666,24 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
                     )
                   )}
 
+                  {/* Przycisk przekierowania do kartki zdarzenia */}
+                  <button
+                    type="button"
+                    onClick={() => handleGoToCard(alert)}
+                    className="w-full mt-2.5 flex items-center justify-center gap-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs py-2 px-3 border border-indigo-200/80 transition shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                    title="Przejdź do kartki tego zdarzenia"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                    <span>Przejdź do kartki zdarzenia</span>
+                    <ArrowRight className="h-3.5 w-3.5 text-indigo-500 shrink-0 ml-0.5" />
+                  </button>
+
                   {isAllowedToDeactivate && onDeactivate && (
                     <button
                       type="button"
                       onClick={() => onDeactivate(alert.id)}
                       disabled={actionLoadingId === alert.id}
-                      className="w-full mt-2 flex items-center justify-center gap-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2 px-3 shadow transition cursor-pointer"
+                      className="w-full mt-1.5 flex items-center justify-center gap-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2 px-3 shadow transition cursor-pointer"
                     >
                       <Ban className="h-3.5 w-3.5" />
                       <span>ODWOŁAJ KOMUNIKAT</span>

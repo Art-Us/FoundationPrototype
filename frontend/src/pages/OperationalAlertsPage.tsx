@@ -596,6 +596,22 @@ export const OperationalAlertsPage: React.FC = () => {
     }
   };
 
+  const handleNavigateToCard = (alert: AlertMapItem) => {
+    if (viewMode === 'map') {
+      setViewMode('split');
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`alert-card-${alert.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-indigo-400', 'transition-all');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-indigo-400');
+        }, 2500);
+      }
+    }, 100);
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
@@ -1318,6 +1334,7 @@ export const OperationalAlertsPage: React.FC = () => {
                 focusKey={focusKey}
                 mode={mapMode}
                 onModeChange={setMapMode}
+                onNavigateToCard={handleNavigateToCard}
               />
             </section>
           )}
@@ -1372,6 +1389,7 @@ export const OperationalAlertsPage: React.FC = () => {
                     return (
                       <article
                         key={alert.id}
+                        id={`alert-card-${alert.id}`}
                         className={`group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border transition duration-200 space-y-4 ${
                           matchingOrgDemands.length > 0
                             ? 'border-emerald-300/90 shadow-emerald-500/5 ring-1 ring-emerald-400/30'
@@ -1513,20 +1531,16 @@ export const OperationalAlertsPage: React.FC = () => {
                                           )}
                                         </div>
 
-                                        <button
-                                          type="button"
-                                          onClick={() => openAllocationModal(alert, nr)}
-                                          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 ${
-                                            isFulfilled
-                                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                                              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                                          }`}
-                                        >
-                                          <PackageCheck className="h-3.5 w-3.5" />
-                                          <span>
-                                            {isFulfilled ? '+ Dodaj więcej' : 'Przydziel zasoby'}
-                                          </span>
-                                        </button>
+                                        {!isFulfilled && (
+                                          <button
+                                            type="button"
+                                            onClick={() => openAllocationModal(alert, nr)}
+                                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                                          >
+                                            <PackageCheck className="h-3.5 w-3.5" />
+                                            <span>Przydziel zasoby</span>
+                                          </button>
+                                        )}
                                       </div>
 
                                       {/* Pasek postępu */}
