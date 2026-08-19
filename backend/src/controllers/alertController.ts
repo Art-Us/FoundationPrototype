@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Alert, User, Organization, Municipality, Resource } from '../models';
 import { AuthenticatedRequest } from '../middleware/protect';
+import { recordAuditLog } from '../services/auditService';
 
 /**
  * @desc    Pobiera wszystkie aktywne alerty (publiczny dostęp)
@@ -284,6 +285,31 @@ export const createAlert = async (
       ],
     });
 
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'alert_created',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: req.user,
+      organizationId: userOrg?.id,
+      organizationName: userOrg?.name,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Utworzenie i publikacja nowego komunikatu: "${alert.title || alert.category}" (${alert.locationName || 'Brak lokalizacji'})`,
+      newState: {
+        title: alert.title,
+        content: alert.content,
+        category: alert.category,
+        severity: alert.severity,
+        locationName: alert.locationName,
+        county: alert.county,
+        voivodeship: alert.voivodeship,
+        lat: alert.lat,
+        lng: alert.lng,
+        neededResources: alert.neededResources,
+      },
+    });
+
     res.status(201).json({
       success: true,
       message: 'Alert został pomyślnie utworzony.',
@@ -325,8 +351,9 @@ export const deactivateAlert = async (
 
     let userMunicipalityId: string | null = null;
     let userOrgName: string | undefined = undefined;
+    let userOrg: Organization | null = null;
     if (user.organizationId) {
-      const userOrg = await Organization.findByPk(user.organizationId);
+      userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
         userOrgName = userOrg.name;
@@ -379,6 +406,21 @@ export const deactivateAlert = async (
       ],
     });
 
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'alert_deactivated',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: req.user,
+      organizationId: userOrg?.id,
+      organizationName: userOrgName,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Odwołanie komunikatu kryzysowego (przeniesienie do archiwum): "${alert.title || alert.category}"`,
+      previousState: { isActive: true },
+      newState: { isActive: false },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Alert został pomyślnie dezaktywowany.',
@@ -420,8 +462,9 @@ export const reactivateAlert = async (
 
     let userMunicipalityId: string | null = null;
     let userOrgName: string | undefined = undefined;
+    let userOrg: Organization | null = null;
     if (user.organizationId) {
-      const userOrg = await Organization.findByPk(user.organizationId);
+      userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
         userOrgName = userOrg.name;
@@ -474,6 +517,21 @@ export const reactivateAlert = async (
       ],
     });
 
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'alert_reactivated',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: req.user,
+      organizationId: userOrg?.id,
+      organizationName: userOrgName,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Wznowienie i ponowna publikacja komunikatu: "${alert.title || alert.category}"`,
+      previousState: { isActive: false },
+      newState: { isActive: true },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Alert został pomyślnie reaktywowany i ponownie opublikowany.',
@@ -516,8 +574,9 @@ export const updateAlert = async (
 
     let userMunicipalityId: string | null = null;
     let userOrgName: string | undefined = undefined;
+    let userOrg: Organization | null = null;
     if (user.organizationId) {
-      const userOrg = await Organization.findByPk(user.organizationId);
+      userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
         userOrgName = userOrg.name;
@@ -533,6 +592,20 @@ export const updateAlert = async (
       });
       return;
     }
+
+    const previousState = {
+      title: alert.title,
+      content: alert.content,
+      category: alert.category,
+      severity: alert.severity,
+      locationName: alert.locationName,
+      county: alert.county,
+      voivodeship: alert.voivodeship,
+      lat: alert.lat,
+      lng: alert.lng,
+      isActive: alert.isActive,
+      neededResources: alert.neededResources ? JSON.parse(JSON.stringify(alert.neededResources)) : [],
+    };
 
     if (title !== undefined) alert.title = title ? title.trim() : null;
     if (content !== undefined) alert.content = content.trim();
@@ -585,6 +658,33 @@ export const updateAlert = async (
           attributes: ['id', 'name'],
         },
       ],
+    });
+
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'alert_updated',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: req.user,
+      organizationId: userOrg?.id,
+      organizationName: userOrgName,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Aktualizacja parametrów lub treści komunikatu "${alert.title || alert.category}"`,
+      previousState,
+      newState: {
+        title: alert.title,
+        content: alert.content,
+        category: alert.category,
+        severity: alert.severity,
+        locationName: alert.locationName,
+        county: alert.county,
+        voivodeship: alert.voivodeship,
+        lat: alert.lat,
+        lng: alert.lng,
+        isActive: alert.isActive,
+        neededResources: alert.neededResources,
+      },
     });
 
     res.status(200).json({
@@ -817,6 +917,35 @@ export const allocateResourceToAlert = async (
       ],
     });
 
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'resource_allocated',
+      entityType: 'resource',
+      entityId: targetReq.id,
+      user: req.user,
+      organizationId: userOrg.id,
+      organizationName: userOrg.name,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Dyspozycja zasobów: przekazano ${allocQuantity} ${targetReq.unit || 'szt.'} na zapotrzebowanie "${targetReq.name}" (jednostka: ${userOrg.name})`,
+      previousState: {
+        neededResourceId: targetReq.id,
+        resourceName: targetReq.name,
+        quantityAllocatedBefore: (targetReq.quantityAllocated || 0) - allocQuantity,
+        warehouseResourceId: matchedResource?.id,
+        warehouseQuantityBefore: matchedResource ? matchedResource.quantity + allocQuantity : undefined,
+      },
+      newState: {
+        neededResourceId: targetReq.id,
+        resourceName: targetReq.name,
+        quantityAllocatedAfter: targetReq.quantityAllocated,
+        allocatedAmount: allocQuantity,
+        warehouseResourceId: matchedResource?.id,
+        warehouseQuantityAfter: matchedResource ? matchedResource.quantity : undefined,
+        note: note ? String(note).trim() : undefined,
+      },
+    });
+
     res.status(200).json({
       success: true,
       message: `Pomyślnie przydzielono ${allocQuantity} ${targetReq.unit || 'szt.'} do alertu. Stan magazynu Twojej organizacji został zaktualizowany.`,
@@ -964,6 +1093,25 @@ export const createAlertPost = async (
           attributes: ['id', 'name'],
         },
       ],
+    });
+
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'post_created',
+      entityType: 'post',
+      entityId: newPost.id,
+      user: req.user,
+      organizationId: user.organizationId,
+      organizationName: userOrgName,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Opublikowanie nowego wpisu na forum alertu: "${newPost.title}"`,
+      newState: {
+        postId: newPost.id,
+        title: newPost.title,
+        content: newPost.content,
+        postType: newPost.postType,
+      },
     });
 
     res.status(201).json({

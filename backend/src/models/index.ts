@@ -4,6 +4,7 @@ import Organization from './Organization';
 import User from './User';
 import Alert from './Alert';
 import Resource from './Resource';
+import AuditLog from './AuditLog';
 
 // Relacje Municipality <-> Organization
 Municipality.hasMany(Organization, {
@@ -65,5 +66,7 @@ export * from './Organization';
 export * from './User';
 export * from './Alert';
 export * from './Resource';
-export { sequelize };
+export * from './AuditLog';
+export { sequelize, AuditLog };
+
 

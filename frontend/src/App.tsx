@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { PendingVerificationPage } from './pages/PendingVerificationPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { AdminAuditLogsPage } from './pages/AdminAuditLogsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DashboardAlertsPage } from './pages/DashboardAlertsPage';
 import { DashboardResourcesPage } from './pages/DashboardResourcesPage';
@@ -93,6 +94,22 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute requireAdmin={true}>
                   <AdminDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/logs"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminAuditLogsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/admin/logs"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminAuditLogsPage />
                 </ProtectedRoute>
               }
             />

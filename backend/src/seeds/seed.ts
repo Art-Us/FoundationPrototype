@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { sequelize, Municipality, Organization, User, Alert, Resource } from '../models';
+import { sequelize, Municipality, Organization, User, Alert, Resource, AuditLog } from '../models';
 
 export const seedDatabase = async () => {
   try {
@@ -1256,7 +1256,7 @@ export const seedDatabase = async () => {
     ];
 
     for (const a of alertsData) {
-      await Alert.create({
+      const createdAlert = await Alert.create({
         title: (a as any).title || a.content.split('.')[0],
         content: a.content,
         category: a.category,
@@ -1282,9 +1282,66 @@ export const seedDatabase = async () => {
         neededResources: a.needed,
         posts: a.posts,
       });
+
+      // Audit log utworzenia alertu
+      await AuditLog.create({
+        action: 'alert_created',
+        entityType: 'alert',
+        entityId: createdAlert.id,
+        userId: a.authorId,
+        userName: 'Dyspozytor Wojewódzki',
+        userEmail: 'koordynator.klodzko@samorzad.pl',
+        alertId: createdAlert.id,
+        alertTitle: createdAlert.title,
+        details: `Utworzenie i publikacja komunikatu: "${createdAlert.title}" w miejscowości ${createdAlert.locationName || 'Polska'}`,
+        newState: {
+          title: createdAlert.title,
+          content: createdAlert.content,
+          category: createdAlert.category,
+          severity: createdAlert.severity,
+          locationName: createdAlert.locationName,
+        },
+        createdAt: new Date(now - a.hoursAgo * oneHour),
+      });
+
+      // Audit log dla przydziałów zasobów (jeśli alert posiada zadeklarowane allocations)
+      if (Array.isArray(a.needed)) {
+        for (const nr of a.needed) {
+          if (nr.quantityAllocated && nr.quantityAllocated > 0) {
+            await AuditLog.create({
+              action: 'resource_allocated',
+              entityType: 'resource',
+              entityId: nr.id,
+              userId: a.authorId,
+              userName: 'Centrum Operacyjne Ratownictwa',
+              userEmail: 'admin@fundacjaq.pl',
+              alertId: createdAlert.id,
+              alertTitle: createdAlert.title,
+              details: `Dyspozycja zasobów: przekazano ${nr.quantityAllocated} ${nr.unit} na zapotrzebowanie "${nr.name}"`,
+              previousState: { neededResourceId: nr.id, quantityAllocatedBefore: 0 },
+              newState: { neededResourceId: nr.id, allocatedAmount: nr.quantityAllocated },
+              createdAt: new Date(now - (a.hoursAgo - 1) * oneHour),
+            });
+          }
+        }
+      }
     }
 
-    console.log(`✅ Utworzono ${alertsData.length} rozbudowanych alertów z zapotrzebowaniami i wątkami forum w całej Polsce.`);
+    // Dodatkowe audit logi dla weryfikacji użytkowników
+    await AuditLog.create({
+      action: 'user_verified',
+      entityType: 'user',
+      entityId: strazakKlodzko.id,
+      userId: admin.id,
+      userName: `${admin.firstName} ${admin.lastName}`,
+      userEmail: admin.email,
+      details: `Weryfikacja i aktywacja konta strażaka: ${strazakKlodzko.firstName} ${strazakKlodzko.lastName} (OSP Kłodzko)`,
+      previousState: { isVerified: false },
+      newState: { isVerified: true },
+      createdAt: new Date(now - 12 * oneHour),
+    });
+
+    console.log(`✅ Utworzono ${alertsData.length} rozbudowanych alertów i zainicjalizowano Dziennik Audytowy (Audit Logs).`);
 
     // 6. Zasoby magazynowe dla jednostek
     const resourcesData = [
@@ -1308,10 +1365,10 @@ export const seedDatabase = async () => {
       if (orgs[r.org]) {
         await Resource.create({
           organizationId: orgs[r.org].id,
-          type: r.type,
+          type: r.type as any,
           subcategory: r.sub,
           quantity: r.qty,
-          timeframe: r.tf,
+          timeframe: r.tf as any,
           isActive: true,
         });
       }

@@ -1,7 +1,9 @@
 import { Response } from 'express';
 import bcrypt from 'bcrypt';
-import { User, Organization, Municipality } from '../models';
+import { Op } from 'sequelize';
+import { User, Organization, Municipality, Alert, Resource, AuditLog } from '../models';
 import { AuthenticatedRequest } from '../middleware/protect';
+import { recordAuditLog } from '../services/auditService';
 
 /**
  * @desc    Pobiera listę użytkowników oczekujących na weryfikację (isVerified: false)
@@ -85,6 +87,17 @@ export const verifyUser = async (
       ],
     });
 
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'user_verified',
+      entityType: 'user',
+      entityId: user.id,
+      user: req.user,
+      details: `Weryfikacja i aktywacja konta służb dla użytkownika ${user.firstName} ${user.lastName} (${user.email})`,
+      previousState: { isVerified: false },
+      newState: { isVerified: true },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Użytkownik został pomyślnie zweryfikowany.',
@@ -120,7 +133,25 @@ export const rejectUser = async (
       return;
     }
 
+    const userData = {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+    };
+
     await user.destroy();
+
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'user_rejected',
+      entityType: 'user',
+      entityId: id,
+      user: req.user,
+      details: `Odrzucenie wniosku rejestracji i usunięcie konta użytkownika ${userData.firstName} ${userData.lastName} (${userData.email})`,
+      previousState: userData,
+      newState: null,
+    });
 
     res.status(200).json({
       success: true,
@@ -707,3 +738,401 @@ export const getAllMunicipalities = async (
     });
   }
 };
+
+/**
+ * @desc    Pobiera dziennik zdarzeń i zmian (Audit Logs) z filtrowaniem i agregacjami
+ * @route   GET /api/admin/logs
+ * @access  Private (adminOnly)
+ */
+export const getAuditLogs = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      userId,
+      alertId,
+      entityType,
+      action,
+      organization,
+      search,
+      startDate,
+      endDate,
+      sortBy = 'date',
+      sortOrder = 'DESC',
+      page = '1',
+      limit = '50',
+    } = req.query;
+
+    const whereClause: any = {};
+
+    if (userId && userId !== 'all') {
+      whereClause.userId = userId;
+    }
+
+    if (alertId && alertId !== 'all') {
+      whereClause.alertId = alertId;
+    }
+
+    if (entityType && entityType !== 'all') {
+      whereClause.entityType = entityType;
+    }
+
+    if (action && action !== 'all') {
+      whereClause.action = action;
+    }
+
+    if (organization && organization !== 'all') {
+      whereClause.organizationName = organization;
+    }
+
+    if (startDate || endDate) {
+      whereClause.createdAt = {};
+      if (startDate) {
+        whereClause.createdAt[Op.gte] = new Date(startDate as string);
+      }
+      if (endDate) {
+        const endD = new Date(endDate as string);
+        endD.setHours(23, 59, 59, 999);
+        whereClause.createdAt[Op.lte] = endD;
+      }
+    }
+
+    if (search && String(search).trim()) {
+      const q = `%${String(search).trim()}%`;
+      whereClause[Op.or] = [
+        { userName: { [Op.like]: q } },
+        { userEmail: { [Op.like]: q } },
+        { alertTitle: { [Op.like]: q } },
+        { organizationName: { [Op.like]: q } },
+        { details: { [Op.like]: q } },
+      ];
+    }
+
+    let order: any = [['createdAt', sortOrder === 'ASC' ? 'ASC' : 'DESC']];
+    if (sortBy === 'userName') {
+      order = [['userName', sortOrder === 'ASC' ? 'ASC' : 'DESC']];
+    } else if (sortBy === 'alertTitle') {
+      order = [['alertTitle', sortOrder === 'ASC' ? 'ASC' : 'DESC']];
+    } else if (sortBy === 'action') {
+      order = [['action', sortOrder === 'ASC' ? 'ASC' : 'DESC']];
+    }
+
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const pageLimit = Math.max(1, Math.min(200, parseInt(limit as string) || 50));
+    const offset = (pageNum - 1) * pageLimit;
+
+    // Upewnij się, że tabela istnieje
+    await AuditLog.sync();
+
+    // Jeśli brak logów audytowych, wygeneruj początkowe na podstawie istniejących alertów
+    const initialLogCount = await AuditLog.count();
+    if (initialLogCount === 0) {
+      const existingAlerts = await Alert.findAll();
+      for (const al of existingAlerts) {
+        await AuditLog.create({
+          action: 'alert_created',
+          entityType: 'alert',
+          entityId: al.id,
+          userId: al.authorId,
+          userName: 'Dyspozytor Wojewódzki',
+          userEmail: 'koordynator.klodzko@samorzad.pl',
+          alertId: al.id,
+          alertTitle: al.title || al.locationName || 'Komunikat kryzysowy',
+          details: `Utworzenie i publikacja komunikatu: "${al.title || al.category}" (${al.locationName || 'Polska'})`,
+          newState: {
+            title: al.title,
+            content: al.content,
+            category: al.category,
+            severity: al.severity,
+            locationName: al.locationName,
+          },
+          createdAt: al.createdAt || new Date(),
+        });
+      }
+    }
+
+    const { count, rows: logs } = await AuditLog.findAndCountAll({
+      where: whereClause,
+      order,
+      limit: pageLimit,
+      offset,
+    });
+
+    const allUsers = await User.findAll({
+      attributes: ['id', 'firstName', 'lastName', 'email', 'phone', 'role', 'isVerified', 'createdAt'],
+      include: [
+        {
+          model: Organization,
+          as: 'organization',
+          attributes: ['id', 'name', 'type'],
+          include: [{ model: Municipality, as: 'municipality', attributes: ['id', 'name'] }],
+        },
+      ],
+      order: [['lastName', 'ASC']],
+    });
+
+    const allAlerts = await Alert.findAll({
+      attributes: [
+        'id',
+        'title',
+        'content',
+        'locationName',
+        'county',
+        'voivodeship',
+        'category',
+        'severity',
+        'isActive',
+        'neededResources',
+        'createdAt',
+      ],
+      include: [
+        {
+          model: User,
+          as: 'author',
+          attributes: ['id', 'firstName', 'lastName', 'email'],
+          include: [{ model: Organization, as: 'organization', attributes: ['id', 'name'] }],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+
+    const allOrganizations = await Organization.findAll({
+      attributes: ['id', 'name', 'type'],
+      order: [['name', 'ASC']],
+    });
+
+    const totalLogs = await AuditLog.count();
+    const oneDayAgo = new Date(Date.now() - 24 * 3600 * 1000);
+    const count24h = await AuditLog.count({
+      where: { createdAt: { [Op.gte]: oneDayAgo } },
+    });
+    const revertedCount = await AuditLog.count({
+      where: { isReverted: true },
+    });
+    const activeAlertsCount = await Alert.count({ where: { isActive: true } });
+
+    res.status(200).json({
+      success: true,
+      count,
+      totalPages: Math.ceil(count / pageLimit),
+      currentPage: pageNum,
+      data: logs,
+      availableUsers: allUsers.map((u: any) => ({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        isVerified: u.isVerified,
+        organizationId: u.organization?.id,
+        organizationName: u.organization?.name,
+        organizationType: u.organization?.type,
+        municipalityName: u.organization?.municipality?.name,
+        createdAt: u.createdAt,
+      })),
+      availableAlerts: allAlerts.map((a: any) => ({
+        id: a.id,
+        title: a.title || a.locationName || 'Komunikat kryzysowy',
+        content: a.content,
+        locationName: a.locationName,
+        county: a.county,
+        voivodeship: a.voivodeship,
+        category: a.category,
+        severity: a.severity,
+        isActive: a.isActive,
+        neededResources: a.neededResources,
+        authorName: a.author ? `${a.author.firstName} ${a.author.lastName}` : 'Dyspozytor',
+        organizationName: a.author?.organization?.name,
+        createdAt: a.createdAt,
+      })),
+      availableOrganizations: allOrganizations.map((o) => o.name),
+      metrics: {
+        totalLogs,
+        count24h,
+        revertedCount,
+        activeAlertsCount,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas pobierania dziennika zdarzeń (Audit Logs).',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Odwołuje (cofa / rollback) wybraną zmianę z dziennika zdarzeń
+ * @route   POST /api/admin/logs/:id/revert
+ * @access  Private (adminOnly)
+ */
+export const revertAuditLog = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const log = await AuditLog.findByPk(id);
+    if (!log) {
+      res.status(404).json({
+        success: false,
+        message: 'Wpis w dzienniku zdarzeń nie został odnaleziony.',
+      });
+      return;
+    }
+
+    if (log.isReverted) {
+      res.status(400).json({
+        success: false,
+        message: 'Ta zmiana została już wcześniej odwołana (wycofana).',
+      });
+      return;
+    }
+
+    const adminUser = req.user!;
+    let rollbackDetails = '';
+
+    if (log.action === 'alert_updated' && log.previousState) {
+      const alert = await Alert.findByPk(log.alertId || log.entityId);
+      if (!alert) {
+        res.status(404).json({
+          success: false,
+          message: 'Powiązany alert nie istnieje w systemie.',
+        });
+        return;
+      }
+
+      const prev = log.previousState;
+      if (prev.title !== undefined) alert.title = prev.title;
+      if (prev.content !== undefined) alert.content = prev.content;
+      if (prev.category !== undefined) alert.category = prev.category;
+      if (prev.severity !== undefined) alert.severity = prev.severity;
+      if (prev.locationName !== undefined) alert.locationName = prev.locationName;
+      if (prev.county !== undefined) alert.county = prev.county;
+      if (prev.voivodeship !== undefined) alert.voivodeship = prev.voivodeship;
+      if (prev.lat !== undefined) alert.lat = prev.lat;
+      if (prev.lng !== undefined) alert.lng = prev.lng;
+      if (prev.isActive !== undefined) alert.isActive = prev.isActive;
+      if (prev.neededResources !== undefined) {
+        alert.neededResources = prev.neededResources;
+        alert.changed('neededResources', true);
+      }
+
+      const history = Array.isArray(alert.history) ? [...alert.history] : [];
+      history.push({
+        id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        action: 'updated',
+        timestamp: new Date().toISOString(),
+        userName: `${adminUser.firstName} ${adminUser.lastName} (Admin)`,
+        details: `Cofnięcie zmian do stanu z dnia ${new Date(log.createdAt).toLocaleString('pl-PL')}`,
+      });
+      alert.history = history;
+      await alert.save();
+      rollbackDetails = `Przywrócono poprzednie parametry alertu "${alert.title || alert.category}"`;
+    } else if (log.action === 'alert_deactivated') {
+      const alert = await Alert.findByPk(log.alertId || log.entityId);
+      if (alert) {
+        alert.isActive = true;
+        const history = Array.isArray(alert.history) ? [...alert.history] : [];
+        history.push({
+          id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          action: 'reactivated',
+          timestamp: new Date().toISOString(),
+          userName: `${adminUser.firstName} ${adminUser.lastName} (Admin)`,
+          details: 'Wycofanie odwołania komunikatu przez administratora (Rollback)',
+        });
+        alert.history = history;
+        await alert.save();
+        rollbackDetails = `Wycofano odwołanie alertu "${alert.title || alert.category}" (przywrócono status Aktywny)`;
+      }
+    } else if (log.action === 'alert_reactivated') {
+      const alert = await Alert.findByPk(log.alertId || log.entityId);
+      if (alert) {
+        alert.isActive = false;
+        const history = Array.isArray(alert.history) ? [...alert.history] : [];
+        history.push({
+          id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          action: 'deactivated',
+          timestamp: new Date().toISOString(),
+          userName: `${adminUser.firstName} ${adminUser.lastName} (Admin)`,
+          details: 'Wycofanie wznowienia komunikatu przez administratora (Rollback)',
+        });
+        alert.history = history;
+        await alert.save();
+        rollbackDetails = `Wycofano wznowienie alertu "${alert.title || alert.category}" (przeniesiono do archiwum)`;
+      }
+    } else if (log.action === 'resource_allocated' && log.alertId) {
+      const alert = await Alert.findByPk(log.alertId);
+      if (alert && Array.isArray(alert.neededResources)) {
+        const needed = [...alert.neededResources];
+        const targetReqId = log.entityId || log.previousState?.neededResourceId;
+        const reqIdx = needed.findIndex((nr) => nr.id === targetReqId);
+        const allocAmount = log.newState?.allocatedAmount || 0;
+
+        if (reqIdx !== -1 && allocAmount > 0) {
+          const reqItem = { ...needed[reqIdx] };
+          reqItem.quantityAllocated = Math.max(0, (reqItem.quantityAllocated || 0) - allocAmount);
+          needed[reqIdx] = reqItem;
+          alert.neededResources = needed;
+          alert.changed('neededResources', true);
+          await alert.save();
+        }
+
+        const warehouseResId = log.newState?.warehouseResourceId;
+        if (warehouseResId && allocAmount > 0) {
+          const whResource = await Resource.findByPk(warehouseResId);
+          if (whResource) {
+            whResource.quantity += allocAmount;
+            await whResource.save();
+          }
+        }
+        rollbackDetails = `Wycofano przydział ${allocAmount} szt. zasobów i zwrócono je do magazynu jednostki.`;
+      }
+    } else if (log.action === 'user_verified' && log.entityId) {
+      const targetUser = await User.findByPk(log.entityId);
+      if (targetUser) {
+        targetUser.isVerified = false;
+        await targetUser.save();
+        rollbackDetails = `Cofnięto weryfikację konta użytkownika ${targetUser.firstName} ${targetUser.lastName}.`;
+      }
+    } else {
+      rollbackDetails = `Wycofano operację "${log.action}" (ID wpisu: ${log.id})`;
+    }
+
+    log.isReverted = true;
+    log.revertedAt = new Date();
+    log.revertedByUserId = adminUser.id;
+    log.revertedByUserName = `${adminUser.firstName} ${adminUser.lastName}`;
+    await log.save();
+
+    await recordAuditLog({
+      action: 'revert_action',
+      entityType: log.entityType,
+      entityId: log.entityId,
+      user: adminUser,
+      alertId: log.alertId,
+      alertTitle: log.alertTitle,
+      details: `Odwołanie zmiany (Rollback wpisu ${log.id}): ${rollbackDetails}`,
+      previousState: { revertedLogId: log.id, actionReverted: log.action },
+      newState: { isReverted: true },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Pomyślnie wycofano zmianę: ${rollbackDetails}`,
+      data: log,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas wycofywania zmiany.',
+      error: error.message,
+    });
+  }
+};
+
