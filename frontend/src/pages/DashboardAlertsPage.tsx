@@ -26,7 +26,6 @@ import {
   Clock,
   MapPin,
   Building,
-  RefreshCw,
   Archive,
   Radio,
   Check,
@@ -827,15 +826,6 @@ export const DashboardAlertsPage: React.FC = () => {
           >
             <MapIcon className="h-4 w-4" />
             <span>{showMap ? 'Ukryj Mapę' : 'Pokaż Mapę'}</span>
-          </button>
-
-          <button
-            onClick={fetchAlerts}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition cursor-pointer"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Odśwież</span>
           </button>
         </div>
       </div>

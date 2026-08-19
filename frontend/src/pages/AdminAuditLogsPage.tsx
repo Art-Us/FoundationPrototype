@@ -3,7 +3,6 @@ import api from '../services/api';
 import {
   History,
   Search,
-  RefreshCw,
   RotateCcw,
   User,
   ShieldCheck,
@@ -1057,17 +1056,6 @@ export const AdminAuditLogsPage: React.FC = () => {
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Śledź wszystkie zmiany w alertach kryzysowych, zapotrzebowaniach i użytkownikach oraz cofaj dowolne operacje
           </p>
-        </div>
-
-        <div className="flex items-center gap-2.5 self-start sm:self-auto">
-          <button
-            onClick={fetchLogs}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition cursor-pointer"
-          >
-            <RefreshCw className={`h-4 w-4 text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Odśwież Dziennik</span>
-          </button>
         </div>
       </div>
 

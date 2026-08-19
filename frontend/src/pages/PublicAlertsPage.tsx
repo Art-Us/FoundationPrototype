@@ -13,7 +13,6 @@ import {
   MapPin,
   Building,
   AlertTriangle,
-  RefreshCw,
   Search,
   PhoneCall,
   User,
@@ -461,15 +460,6 @@ export const PublicAlertsPage: React.FC = () => {
                 <option value="demands-critical">📦 Posiadanie krytycznych żądań</option>
               </select>
             </div>
-
-            <button
-              onClick={fetchAlerts}
-              disabled={isLoading}
-              className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-semibold transition shrink-0 cursor-pointer"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Odśwież</span>
-            </button>
           </div>
         </div>
 
@@ -544,7 +534,12 @@ export const PublicAlertsPage: React.FC = () => {
                 </span>
               </div>
 
-              {filteredAlerts.length === 0 ? (
+              {isLoading ? (
+                <div className="py-16 text-center text-slate-400">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent mb-2"></div>
+                  <p className="text-xs">Ładowanie komunikatów...</p>
+                </div>
+              ) : filteredAlerts.length === 0 ? (
                 <div className="rounded-3xl bg-white p-12 text-center border border-slate-200/80 shadow-xs max-w-md mx-auto space-y-4">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100">
                     <ShieldCheck className="h-7 w-7" />

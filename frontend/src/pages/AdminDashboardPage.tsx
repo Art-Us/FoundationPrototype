@@ -7,7 +7,6 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
-  RefreshCw,
   Search,
   Building,
   Mail,
@@ -600,14 +599,6 @@ export const AdminDashboardPage: React.FC = () => {
               Zarządzaj strukturą jednostek, twórz organizacje, rejestruj pracowników i weryfikuj konta służb ratunkowych.
             </p>
           </div>
-
-          <button
-            onClick={fetchAdminData}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition self-start sm:self-auto border border-white/10 cursor-pointer"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Odśwież dane</span>
-          </button>
         </div>
       </div>
 
@@ -655,10 +646,17 @@ export const AdminDashboardPage: React.FC = () => {
         </button>
       </div>
 
+      {isLoading && (
+        <div className="py-16 text-center text-slate-400">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent mb-2"></div>
+          <p className="text-xs">Ładowanie danych panelu...</p>
+        </div>
+      )}
+
       {/* ========================================================================= */}
       {/* 1. ZAKŁADKA: WERYFIKACJA WNIOSKÓW                                        */}
       {/* ========================================================================= */}
-      {activeTab === 'verification' && (
+      {!isLoading && activeTab === 'verification' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
             <div className="relative flex-1 max-w-md">
@@ -789,7 +787,7 @@ export const AdminDashboardPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* 2. ZAKŁADKA: PRACOWNICY & UŻYTKOWNICY (CRUD & FILTRY)                     */}
       {/* ========================================================================= */}
-      {activeTab === 'workers' && (
+      {!isLoading && activeTab === 'workers' && (
         <div className="space-y-5">
           {/* Belka filtrów i akcji */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">
@@ -1005,7 +1003,7 @@ export const AdminDashboardPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* 3. ZAKŁADKA: ORGANIZACJE & JEDNOSTKI (CRUD & FILTRY)                      */}
       {/* ========================================================================= */}
-      {activeTab === 'organizations' && (
+      {!isLoading && activeTab === 'organizations' && (
         <div className="space-y-5">
           {/* Belka filtrów i dodawania */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-2xs space-y-4">

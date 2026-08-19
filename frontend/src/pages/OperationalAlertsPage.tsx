@@ -15,7 +15,6 @@ import {
   MapPin,
   Building,
   AlertTriangle,
-  RefreshCw,
   Search,
   User,
   ShieldCheck,
@@ -1167,17 +1166,6 @@ export const OperationalAlertsPage: React.FC = () => {
             Przeglądaj aktywne zdarzenia, weryfikuj zapotrzebowanie na sprzęt i przydzielaj zasoby swojej jednostki na miejsce akcji.
           </p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchOperationalData}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Odśwież dane</span>
-          </button>
-        </div>
       </div>
 
       {/* 2. Pasek Filtrów i Wyszukiwania */}
@@ -1400,7 +1388,12 @@ export const OperationalAlertsPage: React.FC = () => {
                 </span>
               </div>
 
-              {filteredAlerts.length === 0 ? (
+              {isLoading ? (
+                <div className="py-16 text-center text-slate-400">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent mb-2"></div>
+                  <p className="text-xs">Ładowanie zdarzeń operacyjnych...</p>
+                </div>
+              ) : filteredAlerts.length === 0 ? (
                 <div className="rounded-3xl bg-white p-12 text-center border border-slate-200/80 shadow-xs max-w-md mx-auto space-y-4">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100">
                     <ShieldCheck className="h-7 w-7" />

@@ -27,7 +27,6 @@ import {
   FileText,
   X,
   Info,
-  RefreshCw,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -495,14 +494,6 @@ export const AlertDetailsPage: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button
-            onClick={fetchAlertDetails}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold border border-slate-200 shadow-2xs transition"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            <span>Odśwież</span>
-          </button>
-
           <span
             className={`px-3 py-1 rounded-xl text-xs font-bold uppercase tracking-wider border ${
               alert.isActive
