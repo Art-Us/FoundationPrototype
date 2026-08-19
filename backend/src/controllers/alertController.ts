@@ -821,6 +821,19 @@ export const allocateResourceToAlert = async (
     const targetReq = { ...neededResources[targetReqIndex] };
     const allocQuantity = Number(quantity);
 
+    const remainingNeeded = Math.max(
+      0,
+      targetReq.quantityNeeded - (targetReq.quantityAllocated || 0)
+    );
+
+    if (allocQuantity > remainingNeeded) {
+      res.status(400).json({
+        success: false,
+        message: `Nie można przydzielić więcej zasobów niż wynosi brakująca ilość. Wymagane jeszcze: ${remainingNeeded}, próbowano przekazać: ${allocQuantity}.`,
+      });
+      return;
+    }
+
     // Jeśli wskazano konkretny zasób z magazynu organizacji lub wyszukujemy zasób
     let matchedResource: Resource | null = null;
     if (resourceId) {
@@ -829,6 +842,14 @@ export const allocateResourceToAlert = async (
         res.status(403).json({
           success: false,
           message: 'Wskazany zasób nie należy do Twojej organizacji.',
+        });
+        return;
+      }
+
+      if (matchedResource.type.toLowerCase() !== targetReq.resourceType.toLowerCase()) {
+        res.status(400).json({
+          success: false,
+          message: `Kategoria przydzielanego zasobu (${matchedResource.type}) nie zgadza się z kategorią zapotrzebowania (${targetReq.resourceType}).`,
         });
         return;
       }
@@ -845,7 +866,7 @@ export const allocateResourceToAlert = async (
       matchedResource.quantity -= allocQuantity;
       await matchedResource.save();
     } else {
-      // Wyszukaj aktywny zasób organizacji
+      // Wyszukaj aktywny zasób organizacji o tym samym typie
       const existingOrgResource = await Resource.findOne({
         where: {
           organizationId: userOrg.id,
@@ -858,6 +879,12 @@ export const allocateResourceToAlert = async (
         existingOrgResource.quantity -= allocQuantity;
         await existingOrgResource.save();
         matchedResource = existingOrgResource;
+      } else {
+        res.status(400).json({
+          success: false,
+          message: `Brak wystarczających zasobów w kategorii "${targetReq.resourceType}" w magazynie Twojej organizacji.`,
+        });
+        return;
       }
     }
 

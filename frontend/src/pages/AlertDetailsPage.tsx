@@ -26,7 +26,6 @@ import {
   MessageCircle,
   FileText,
   X,
-  Info,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -191,23 +190,91 @@ export const AlertDetailsPage: React.FC = () => {
     }
   };
 
-  // Otwarcie modalu alokacji
+  // Otwarcie modalu alokacji z dopasowaniem kategorii i automatycznym wyliczeniem ilości
   const openAllocationModal = (needed: NeededResourceItem) => {
     setAllocatingResource(needed);
-    const remaining = Math.max(1, needed.quantityNeeded - (needed.quantityAllocated || 0));
-    setAllocateQuantity(remaining);
     setAllocationNote('');
 
-    const matched = orgResources.find(
+    const remainingNeeded = Math.max(
+      1,
+      needed.quantityNeeded - (needed.quantityAllocated || 0)
+    );
+
+    // Filtrujemy zasoby organizacji tylko do tej samej kategorii co zapotrzebowanie
+    const matchingResources = orgResources.filter(
       (r) => r.type.toLowerCase() === needed.resourceType.toLowerCase() && r.quantity > 0
     );
-    setSelectedOrgResourceId(matched ? matched.id : orgResources[0]?.id || '');
+
+    if (matchingResources.length > 0) {
+      const selected = matchingResources[0];
+      setSelectedOrgResourceId(selected.id);
+      // Jeśli posiadamy więcej niż jest wymagane -> ustawia dokładnie remainingNeeded
+      // Jeśli posiadamy mniej -> ustawia selected.quantity (maksimum ile posiadamy)
+      const autoQty = Math.min(remainingNeeded, selected.quantity);
+      setAllocateQuantity(autoQty);
+    } else {
+      setSelectedOrgResourceId('');
+      setAllocateQuantity(0);
+    }
+  };
+
+  // Zmiana wybranego zasobu w modalu alokacji
+  const handleSelectOrgResource = (resourceId: string) => {
+    setSelectedOrgResourceId(resourceId);
+    if (!allocatingResource) return;
+
+    const res = orgResources.find((r) => r.id === resourceId);
+    const remainingNeeded = Math.max(
+      1,
+      allocatingResource.quantityNeeded - (allocatingResource.quantityAllocated || 0)
+    );
+
+    if (res && res.quantity > 0) {
+      const autoQty = Math.min(remainingNeeded, res.quantity);
+      setAllocateQuantity(autoQty);
+    } else {
+      setAllocateQuantity(0);
+    }
   };
 
   // Zatwierdzenie przydziału zasobów
   const handleSubmitAllocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!alert || !allocatingResource || allocateQuantity <= 0) return;
+    if (!alert || !allocatingResource) return;
+
+    const remainingNeeded = Math.max(
+      0,
+      allocatingResource.quantityNeeded - (allocatingResource.quantityAllocated || 0)
+    );
+    const selectedRes = orgResources.find((r) => r.id === selectedOrgResourceId);
+
+    if (!selectedRes) {
+      showToast('Wybierz zasób z magazynu Twojej jednostki.', 'error');
+      return;
+    }
+
+    if (selectedRes.type.toLowerCase() !== allocatingResource.resourceType.toLowerCase()) {
+      showToast(
+        `Kategoria zasobu (${selectedRes.type}) nie zgadza się z kategorią zapotrzebowania (${allocatingResource.resourceType}).`,
+        'error'
+      );
+      return;
+    }
+
+    const maxAllowed = Math.min(remainingNeeded, selectedRes.quantity);
+
+    if (allocateQuantity <= 0) {
+      showToast('Podaj dodatnią ilość zasobów do przekazania.', 'error');
+      return;
+    }
+
+    if (allocateQuantity > maxAllowed) {
+      showToast(
+        `Nie można przydzielić więcej niż dopuszczalne ${maxAllowed} ${allocatingResource.unit} (wymagane: ${remainingNeeded}, dostępne w magazynie: ${selectedRes.quantity}).`,
+        'error'
+      );
+      return;
+    }
 
     setIsSubmittingAlloc(true);
     try {
@@ -386,98 +453,193 @@ export const AlertDetailsPage: React.FC = () => {
               </div>
             </div>
 
-            <form onSubmit={handleSubmitAllocation} className="space-y-4">
-              <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <Info className="h-4 w-4 text-amber-700 shrink-0" />
-                  <span>Elastyczny przydział częściowy</span>
-                </div>
-                <p className="text-[11px] text-amber-800 leading-snug">
-                  Nie musisz zamykać całej potrzeby na raz! Przydziel tyle zasobów, ile Twoja jednostka może zadysponować.
-                </p>
-              </div>
+            {(() => {
+              const matchingCategoryResources = orgResources.filter(
+                (r) =>
+                  r.type.toLowerCase() === allocatingResource.resourceType.toLowerCase() &&
+                  r.quantity > 0
+              );
+              const selectedOrgResource = orgResources.find((r) => r.id === selectedOrgResourceId);
+              const remainingNeeded = Math.max(
+                0,
+                allocatingResource.quantityNeeded -
+                  (allocatingResource.quantityAllocated || 0)
+              );
+              const maxAllowed = selectedOrgResource
+                ? Math.min(remainingNeeded, selectedOrgResource.quantity)
+                : remainingNeeded;
+              const hasNoMatching = matchingCategoryResources.length === 0;
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>Zasób z magazynu Twojej jednostki:</span>
-                  <span className="text-[10px] text-indigo-600 font-semibold lowercase">
-                    {user?.organization?.name || 'Twoja organizacja'}
-                  </span>
-                </label>
-
-                {orgResources.length === 0 ? (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-                    <p className="font-semibold">Brak zarejestrowanych zasobów w magazynie</p>
+              return (
+                <form onSubmit={handleSubmitAllocation} className="space-y-4">
+                  {/* Informacja o wymaganej kategorii */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 text-xs text-slate-700 flex items-center justify-between">
+                    <span className="font-semibold text-slate-500">Wymagana kategoria zasobu:</span>
+                    <span className="font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                      {allocatingResource.resourceType}
+                    </span>
                   </div>
-                ) : (
-                  <select
-                    value={selectedOrgResourceId}
-                    onChange={(e) => setSelectedOrgResourceId(e.target.value)}
-                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
-                  >
-                    {orgResources.map((res) => (
-                      <option key={res.id} value={res.id}>
-                        {res.subcategory || res.type.toUpperCase()} • Dostępne w magazynie: {res.quantity} szt. ({res.timeframe})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Ilość do przekazania ({allocatingResource.unit}):
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={allocateQuantity}
-                  onChange={(e) => setAllocateQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-sm font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
+                  {/* Wybór zasobu z magazynu organizacji */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                      <span>Zasób z magazynu Twojej jednostki:</span>
+                      <span className="text-[10px] text-indigo-600 font-semibold lowercase">
+                        {user?.organization?.name || 'Twoja organizacja'}
+                      </span>
+                    </label>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Notatka dyspozytorska / Transport (Opcjonalnie):
-                </label>
-                <input
-                  type="text"
-                  value={allocationNote}
-                  onChange={(e) => setAllocationNote(e.target.value)}
-                  placeholder="np. Wysłano 1 wóz kwatermistrzowski z remizy w Kłodzku"
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
+                    {hasNoMatching ? (
+                      <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-800 space-y-1">
+                        <p className="font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                          <span>Brak dostępnych zasobów w kategorii „{allocatingResource.resourceType.toUpperCase()}”</span>
+                        </p>
+                        <p className="text-[11px] text-red-700">
+                          Twoja jednostka nie posiada w magazynie wolnych zasobów z kategorii <strong>{allocatingResource.resourceType}</strong>. Nie można przydzielić zasobów z innej kategorii.
+                        </p>
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedOrgResourceId}
+                        onChange={(e) => handleSelectOrgResource(e.target.value)}
+                        className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                      >
+                        {matchingCategoryResources.map((res) => (
+                          <option key={res.id} value={res.id}>
+                            {res.subcategory || res.type.toUpperCase()} • Dostępne w magazynie: {res.quantity} szt. ({res.timeframe})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAllocatingResource(null)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
-                >
-                  Anuluj
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingAlloc}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition disabled:opacity-50"
-                >
-                  {isSubmittingAlloc ? (
+                  {!hasNoMatching && (
                     <>
-                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      <span>Przydzielanie...</span>
-                    </>
-                  ) : (
-                    <>
-                      <PackageCheck className="h-4 w-4" />
-                      <span>Zatwierdź i Przydziel</span>
+                      {/* Ilość do przekazania z szybkimi przyciskami */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Ilość do przekazania ({allocatingResource.unit}):
+                          </label>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            Brakuje:{' '}
+                            <strong className="text-amber-800">
+                              {remainingNeeded} {allocatingResource.unit}
+                            </strong>
+                            {selectedOrgResource && (
+                              <span className="ml-1.5 text-slate-400">
+                                (W magazynie: <strong>{selectedOrgResource.quantity}</strong>)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+
+                        <input
+                          type="number"
+                          min="1"
+                          max={maxAllowed}
+                          required
+                          value={allocateQuantity || ''}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            setAllocateQuantity(Math.min(maxAllowed, Math.max(1, val)));
+                          }}
+                          className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-sm font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                        />
+
+                        {/* Szybkie przyciski ilości */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          {[10, 25, 50, 100]
+                            .filter((num) => num < maxAllowed)
+                            .map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => setAllocateQuantity(num)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition"
+                              >
+                                {num} {allocatingResource.unit}
+                              </button>
+                            ))}
+                          <button
+                            type="button"
+                            onClick={() => setAllocateQuantity(maxAllowed)}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200/60 transition"
+                          >
+                            Maks. dozwolony przydział ({maxAllowed})
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Podgląd stanu na żywo */}
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-[11px] space-y-1 text-slate-600">
+                        <div className="flex items-center justify-between">
+                          <span>Nowy stan realizacji alertu:</span>
+                          <strong className="text-emerald-700 font-mono">
+                            {Math.min(
+                              allocatingResource.quantityNeeded,
+                              (allocatingResource.quantityAllocated || 0) + allocateQuantity
+                            )}{' '}
+                            / {allocatingResource.quantityNeeded} {allocatingResource.unit} (
+                            {Math.min(
+                              100,
+                              Math.round(
+                                (((allocatingResource.quantityAllocated || 0) + allocateQuantity) /
+                                  allocatingResource.quantityNeeded) *
+                                  100
+                              )
+                            )}
+                            %)
+                          </strong>
+                        </div>
+                      </div>
+
+                      {/* Notatka operacyjna */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                          Notatka dyspozytorska / Transport (Opcjonalnie):
+                        </label>
+                        <input
+                          type="text"
+                          value={allocationNote}
+                          onChange={(e) => setAllocationNote(e.target.value)}
+                          placeholder="np. Wysłano 1 wóz kwatermistrzowski z remizy w Kłodzku"
+                          className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
                     </>
                   )}
-                </button>
-              </div>
-            </form>
+
+                  <div className="pt-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAllocatingResource(null)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                    >
+                      Anuluj
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingAlloc || hasNoMatching || allocateQuantity <= 0}
+                      className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmittingAlloc ? (
+                        <>
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          <span>Przydzielanie...</span>
+                        </>
+                      ) : (
+                        <>
+                          <PackageCheck className="h-4 w-4" />
+                          <span>Zatwierdź i Przydziel ({allocateQuantity} {allocatingResource.unit})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}
