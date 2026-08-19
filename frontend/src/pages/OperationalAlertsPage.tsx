@@ -2,7 +2,15 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { AlertsMap, AlertMapItem, NeededResourceItem } from '../components/AlertsMap';
+import {
+  AlertsMap,
+  AlertMapItem,
+  NeededResourceItem,
+  MapDisplayMode,
+  getSeverityBadgeInfo,
+  getAlertSeverityScore,
+  getAlertResourceUrgencyScore,
+} from '../components/AlertsMap';
 import {
   MapPin,
   Building,
@@ -30,10 +38,17 @@ import {
   Pencil,
   Trash2,
   MessageSquare,
+  ArrowUpDown,
 } from 'lucide-react';
 
 type ViewMode = 'split' | 'grid' | 'map';
 type ResourceFilter = 'all' | 'needs_help' | 'fulfilled' | 'with_demands';
+type OperationalSortOption =
+  | 'date-desc'
+  | 'date-asc'
+  | 'severity-desc'
+  | 'severity-asc'
+  | 'demands-critical';
 
 interface OrgResourceItem {
   id: string;
@@ -57,13 +72,15 @@ export const OperationalAlertsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtry
+  // Filtry i Sortowanie
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedVoivodeship, setSelectedVoivodeship] = useState<string>('all');
   const [selectedCountyOrCity, setSelectedCountyOrCity] = useState<string>('all');
   const [resourceFilter, setResourceFilter] = useState<ResourceFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [sortBy, setSortBy] = useState<OperationalSortOption>('date-desc');
+  const [mapMode, setMapMode] = useState<MapDisplayMode>('severity');
 
   // Skupienie na mapie
   const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
@@ -423,6 +440,7 @@ export const OperationalAlertsPage: React.FC = () => {
       // 5. Wyszukiwarka pełnotekstowa
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
+        const matchTitle = alert.title ? alert.title.toLowerCase().includes(q) : false;
         const matchContent = alert.content.toLowerCase().includes(q);
         const matchCategory = alert.category.toLowerCase().includes(q);
         const matchLocation = alert.locationName?.toLowerCase().includes(q);
@@ -438,6 +456,7 @@ export const OperationalAlertsPage: React.FC = () => {
         );
 
         return (
+          matchTitle ||
           matchContent ||
           matchCategory ||
           matchLocation ||
@@ -451,6 +470,30 @@ export const OperationalAlertsPage: React.FC = () => {
       }
 
       return true;
+    }).sort((a, b) => {
+      if (sortBy === 'severity-desc') {
+        const scoreA = getAlertSeverityScore(a.severity);
+        const scoreB = getAlertSeverityScore(b.severity);
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortBy === 'severity-asc') {
+        const scoreA = getAlertSeverityScore(a.severity);
+        const scoreB = getAlertSeverityScore(b.severity);
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortBy === 'demands-critical') {
+        const scoreA = getAlertResourceUrgencyScore(a);
+        const scoreB = getAlertResourceUrgencyScore(b);
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortBy === 'date-asc') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      // date-desc
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }, [
     alerts,
@@ -459,6 +502,7 @@ export const OperationalAlertsPage: React.FC = () => {
     selectedCountyOrCity,
     resourceFilter,
     searchQuery,
+    sortBy,
   ]);
 
   const formatDate = (dateStr: string) => {
@@ -986,7 +1030,8 @@ export const OperationalAlertsPage: React.FC = () => {
             <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 text-xs text-slate-600">
               <span className="font-semibold text-slate-500">Dotyczy zdarzenia: </span>
               <strong className="text-slate-900">
-                {addingDemandAlert.locationName ||
+                {addingDemandAlert.title ||
+                  addingDemandAlert.locationName ||
                   addingDemandAlert.municipality?.name ||
                   'Lokalizacja'}
               </strong>
@@ -1213,10 +1258,10 @@ export const OperationalAlertsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Dolna belka filtrów: Przełączniki widoku & Kategorie */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        {/* Dolna belka filtrów: Przełączniki widoku, Kategorie & Sortowanie */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-3 border-t border-slate-100">
           {/* Przełączniki widoku */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode('split')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
@@ -1278,6 +1323,23 @@ export const OperationalAlertsPage: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Sortowanie */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5 text-xs shrink-0">
+            <ArrowUpDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <span className="text-slate-500 hidden sm:inline">Sortuj:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as OperationalSortOption)}
+              className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="date-desc">Najnowsze</option>
+              <option value="date-asc">Najstarsze</option>
+              <option value="severity-desc">🚨 Krytyczność zdarzenia (najwyższa)</option>
+              <option value="severity-asc">🟢 Krytyczność zdarzenia (najniższa)</option>
+              <option value="demands-critical">📦 Posiadanie krytycznych żądań</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -1317,6 +1379,8 @@ export const OperationalAlertsPage: React.FC = () => {
                 height={viewMode === 'map' ? '600px' : '440px'}
                 focusedAlertId={focusedAlertId}
                 focusKey={focusKey}
+                mode={mapMode}
+                onModeChange={setMapMode}
               />
             </section>
           )}
@@ -1352,6 +1416,7 @@ export const OperationalAlertsPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {filteredAlerts.map((alert) => {
                     const categoryBadge = getCategoryBadge(alert.category);
+                    const severityInfo = getSeverityBadgeInfo(alert.severity);
                     const orgName = alert.author?.organization?.name || 'Służby Ratunkowe';
                     const orgType = alert.author?.organization?.type;
                     const authorName = alert.author
@@ -1367,14 +1432,24 @@ export const OperationalAlertsPage: React.FC = () => {
                         className="group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition duration-200 space-y-4"
                       >
                         <div className="space-y-3.5">
-                          {/* Górna belka: Kategoria & Lokalizacja */}
+                          {/* Górna belka: Krytyczność, Kategoria & Lokalizacja */}
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
-                            >
-                              {categoryBadge.icon}
-                              <span>{alert.category}</span>
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {/* Badge Krytyczności */}
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                              >
+                                <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                                <span>{severityInfo.label}</span>
+                              </span>
+
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
+                              >
+                                {categoryBadge.icon}
+                                <span>{alert.category}</span>
+                              </span>
+                            </div>
 
                             <button
                               type="button"
@@ -1400,10 +1475,17 @@ export const OperationalAlertsPage: React.FC = () => {
                             </button>
                           </div>
 
-                          {/* Treść alertu */}
-                          <p className="text-sm sm:text-base text-slate-800 font-semibold leading-relaxed">
-                            {alert.content}
-                          </p>
+                          {/* Tytuł i Treść alertu */}
+                          <div className="space-y-1.5">
+                            {alert.title && (
+                              <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug tracking-tight">
+                                {alert.title}
+                              </h3>
+                            )}
+                            <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                              {alert.content}
+                            </p>
+                          </div>
 
                           {/* Sekcja Zapotrzebowania na Zasoby */}
                           {needed.length > 0 ? (

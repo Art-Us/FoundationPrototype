@@ -2,7 +2,15 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
+import {
+  AlertsMap,
+  AlertMapItem,
+  MapDisplayMode,
+  getSeverityBadgeInfo,
+  getAlertSeverityScore,
+  getAlertResourceUrgencyScore,
+  getHighestResourceUrgency,
+} from '../components/AlertsMap';
 import { LocationPickerMap, LocationDetails } from '../components/LocationPickerMap';
 import {
   AlertHistoryModal,
@@ -35,6 +43,7 @@ import {
   Trash2,
   PackageCheck,
   MessageSquare,
+  Globe,
 } from 'lucide-react';
 
 const CATEGORY_OPTIONS = [
@@ -43,7 +52,19 @@ const CATEGORY_OPTIONS = [
   'Pomoc humanitarna',
   'Zagrożenie pożarowe',
   'Awaria infrastruktury',
-  'Informacja ogólna',
+  'Informacja ogólne',
+];
+
+export const SEVERITY_OPTIONS: {
+  value: 'krytyczny' | 'wysoki' | 'średni' | 'niski';
+  label: string;
+  dotClass: string;
+  textClass: string;
+}[] = [
+  { value: 'krytyczny', label: '🚨 Krytyczny (Czerwony)', dotClass: 'bg-red-500', textClass: 'text-red-700' },
+  { value: 'wysoki', label: '🟠 Wysoki (Pomarańczowy)', dotClass: 'bg-orange-500', textClass: 'text-orange-700' },
+  { value: 'średni', label: '🟡 Średni (Żółty)', dotClass: 'bg-amber-500', textClass: 'text-amber-700' },
+  { value: 'niski', label: '🟢 Niski (Zielony)', dotClass: 'bg-emerald-500', textClass: 'text-emerald-700' },
 ];
 
 export interface NeededResourceDraft {
@@ -56,7 +77,16 @@ export interface NeededResourceDraft {
 }
 
 type AlertTimeframe = '24h' | '48h' | '72h' | 'tydzien' | 'miesiac' | 'rok' | 'wszystkie' | 'custom';
-type AlertSortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'duration-desc' | 'duration-asc';
+type AlertSortOption =
+  | 'date-desc'
+  | 'date-asc'
+  | 'severity-desc'
+  | 'severity-asc'
+  | 'demands-critical'
+  | 'name-asc'
+  | 'name-desc'
+  | 'duration-desc'
+  | 'duration-asc';
 type ArchiveTimeframe = AlertTimeframe;
 type ArchiveSortOption = AlertSortOption;
 
@@ -68,8 +98,10 @@ export const DashboardAlertsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Formularz tworzenia alertu
+  const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
+  const [severity, setSeverity] = useState<'krytyczny' | 'wysoki' | 'średni' | 'niski'>('wysoki');
   const [locationName, setLocationName] = useState('');
   const [county, setCounty] = useState('');
   const [voivodeship, setVoivodeship] = useState('');
@@ -142,8 +174,10 @@ export const DashboardAlertsPage: React.FC = () => {
 
   // Modal edycji alertu
   const [editingAlert, setEditingAlert] = useState<AlertMapItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editCategory, setEditCategory] = useState('');
+  const [editSeverity, setEditSeverity] = useState<'krytyczny' | 'wysoki' | 'średni' | 'niski'>('wysoki');
   const [editLocationName, setEditLocationName] = useState('');
   const [editCounty, setEditCounty] = useState('');
   const [editVoivodeship, setEditVoivodeship] = useState('');
@@ -151,6 +185,7 @@ export const DashboardAlertsPage: React.FC = () => {
   const [editLng, setEditLng] = useState<string>('');
   const [editNeededResources, setEditNeededResources] = useState<any[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [mapMode, setMapMode] = useState<MapDisplayMode>('severity');
 
   const addEditNeededResourceRow = () => {
     setEditNeededResources((prev) => [
@@ -179,6 +214,8 @@ export const DashboardAlertsPage: React.FC = () => {
   };
 
   // System powiadomień Toast
+  const [scope, setScope] = useState<'all' | 'my_municipality'>('all');
+
   const [toast, setToast] = useState<{
     id: number;
     type: 'success' | 'error';
@@ -196,14 +233,14 @@ export const DashboardAlertsPage: React.FC = () => {
   const fetchAlerts = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get('/alerts/my-municipality');
+      const res = await api.get(`/alerts/my-municipality?scope=${scope}`);
       if (res.data.success && Array.isArray(res.data.data)) {
         setAlerts(res.data.data);
       }
     } catch (error: any) {
-      console.error('Błąd pobierania alertów gminy:', error);
+      console.error('Błąd pobierania alertów:', error);
       showToast(
-        error.response?.data?.message || 'Nie udało się pobrać alertów dla Twojej gminy.',
+        error.response?.data?.message || 'Nie udało się pobrać alertów.',
         'error'
       );
     } finally {
@@ -213,7 +250,7 @@ export const DashboardAlertsPage: React.FC = () => {
 
   useEffect(() => {
     fetchAlerts();
-  }, []);
+  }, [scope]);
 
   // 1. Obsługa dodawania nowego alertu
   const handleCreateAlert = async (e: React.FormEvent) => {
@@ -223,8 +260,10 @@ export const DashboardAlertsPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       const payload: any = {
+        title: title.trim() || undefined,
         content: content.trim(),
         category,
+        severity,
         locationName: locationName.trim() || undefined,
         county: county.trim() || undefined,
         voivodeship: voivodeship.trim() || undefined,
@@ -260,7 +299,9 @@ export const DashboardAlertsPage: React.FC = () => {
 
       if (res.data.success && res.data.data) {
         setAlerts((prev) => [res.data.data, ...prev]);
+        setTitle('');
         setContent('');
+        setSeverity('wysoki');
         setLocationName('');
         setCounty('');
         setVoivodeship('');
@@ -331,8 +372,10 @@ export const DashboardAlertsPage: React.FC = () => {
   // 4. Obsługa otwierania modalu edycji
   const openEditModal = (alert: AlertMapItem) => {
     setEditingAlert(alert);
+    setEditTitle(alert.title || '');
     setEditContent(alert.content);
     setEditCategory(alert.category);
+    setEditSeverity(alert.severity || 'wysoki');
     setEditLocationName(alert.locationName || '');
     setEditCounty(alert.county || '');
     setEditVoivodeship(alert.voivodeship || '');
@@ -353,8 +396,10 @@ export const DashboardAlertsPage: React.FC = () => {
     setIsSavingEdit(true);
     try {
       const payload: any = {
+        title: editTitle.trim() || null,
         content: editContent.trim(),
         category: editCategory,
+        severity: editSeverity,
         locationName: editLocationName.trim() || null,
         county: editCounty.trim() || null,
         voivodeship: editVoivodeship.trim() || null,
@@ -462,6 +507,7 @@ export const DashboardAlertsPage: React.FC = () => {
 
         if (activeSearchQuery.trim()) {
           const q = activeSearchQuery.toLowerCase().trim();
+          const matchTitle = alert.title ? alert.title.toLowerCase().includes(q) : false;
           const matchContent = alert.content.toLowerCase().includes(q);
           const matchCategory = alert.category.toLowerCase().includes(q);
           const matchLocation = alert.locationName?.toLowerCase().includes(q);
@@ -474,6 +520,7 @@ export const DashboardAlertsPage: React.FC = () => {
             : false;
 
           return (
+            matchTitle ||
             matchContent ||
             matchCategory ||
             matchLocation ||
@@ -488,6 +535,24 @@ export const DashboardAlertsPage: React.FC = () => {
         return true;
       })
       .sort((a, b) => {
+        if (activeSort === 'severity-desc') {
+          const scoreA = getAlertSeverityScore(a.severity);
+          const scoreB = getAlertSeverityScore(b.severity);
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        if (activeSort === 'severity-asc') {
+          const scoreA = getAlertSeverityScore(a.severity);
+          const scoreB = getAlertSeverityScore(b.severity);
+          if (scoreA !== scoreB) return scoreA - scoreB;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        if (activeSort === 'demands-critical') {
+          const scoreA = getAlertResourceUrgencyScore(a);
+          const scoreB = getAlertResourceUrgencyScore(b);
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
         if (activeSort === 'date-desc') {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         }
@@ -495,13 +560,13 @@ export const DashboardAlertsPage: React.FC = () => {
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         }
         if (activeSort === 'name-asc') {
-          const nameA = a.locationName || a.municipality?.name || a.content;
-          const nameB = b.locationName || b.municipality?.name || b.content;
+          const nameA = a.title || a.locationName || a.municipality?.name || a.content;
+          const nameB = b.title || b.locationName || b.municipality?.name || b.content;
           return nameA.localeCompare(nameB, 'pl');
         }
         if (activeSort === 'name-desc') {
-          const nameA = a.locationName || a.municipality?.name || a.content;
-          const nameB = b.locationName || b.municipality?.name || b.content;
+          const nameA = a.title || a.locationName || a.municipality?.name || a.content;
+          const nameB = b.title || b.locationName || b.municipality?.name || b.content;
           return nameB.localeCompare(nameA, 'pl');
         }
         if (activeSort === 'duration-desc') {
@@ -577,6 +642,7 @@ export const DashboardAlertsPage: React.FC = () => {
 
         if (archiveSearchQuery.trim()) {
           const q = archiveSearchQuery.toLowerCase().trim();
+          const matchTitle = alert.title ? alert.title.toLowerCase().includes(q) : false;
           const matchContent = alert.content.toLowerCase().includes(q);
           const matchCategory = alert.category.toLowerCase().includes(q);
           const matchLocation = alert.locationName?.toLowerCase().includes(q);
@@ -589,6 +655,7 @@ export const DashboardAlertsPage: React.FC = () => {
             : false;
 
           return (
+            matchTitle ||
             matchContent ||
             matchCategory ||
             matchLocation ||
@@ -603,6 +670,24 @@ export const DashboardAlertsPage: React.FC = () => {
         return true;
       })
       .sort((a, b) => {
+        if (archiveSort === 'severity-desc') {
+          const scoreA = getAlertSeverityScore(a.severity);
+          const scoreB = getAlertSeverityScore(b.severity);
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        if (archiveSort === 'severity-asc') {
+          const scoreA = getAlertSeverityScore(a.severity);
+          const scoreB = getAlertSeverityScore(b.severity);
+          if (scoreA !== scoreB) return scoreA - scoreB;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        if (archiveSort === 'demands-critical') {
+          const scoreA = getAlertResourceUrgencyScore(a);
+          const scoreB = getAlertResourceUrgencyScore(b);
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
         if (archiveSort === 'date-desc') {
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         }
@@ -610,13 +695,13 @@ export const DashboardAlertsPage: React.FC = () => {
           return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
         }
         if (archiveSort === 'name-asc') {
-          const nameA = a.locationName || a.municipality?.name || a.content;
-          const nameB = b.locationName || b.municipality?.name || b.content;
+          const nameA = a.title || a.locationName || a.municipality?.name || a.content;
+          const nameB = b.title || b.locationName || b.municipality?.name || b.content;
           return nameA.localeCompare(nameB, 'pl');
         }
         if (archiveSort === 'name-desc') {
-          const nameA = a.locationName || a.municipality?.name || a.content;
-          const nameB = b.locationName || b.municipality?.name || b.content;
+          const nameA = a.title || a.locationName || a.municipality?.name || a.content;
+          const nameB = b.title || b.locationName || b.municipality?.name || b.content;
           return nameB.localeCompare(nameA, 'pl');
         }
         if (archiveSort === 'duration-desc') {
@@ -701,10 +786,40 @@ export const DashboardAlertsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Przełącznik Zakresu Danych: Cały Kraj vs Moja Gmina */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setScope('all')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                scope === 'all'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Wyświetlaj komunikaty ze wszystkich gmin w Polsce"
+            >
+              <Globe className="h-3.5 w-3.5 text-indigo-600" />
+              <span>Cały Kraj (Wszystkie gminy)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('my_municipality')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                scope === 'my_municipality'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Filtruj wyłącznie do komunikatów Twojej jednostki samorządowej"
+            >
+              <Building className="h-3.5 w-3.5 text-slate-500" />
+              <span>Moja Gmina</span>
+            </button>
+          </div>
+
           <button
             onClick={() => setShowMap(!showMap)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs ${
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs cursor-pointer ${
               showMap
                 ? 'bg-indigo-600 border-indigo-600 text-white'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -717,7 +832,7 @@ export const DashboardAlertsPage: React.FC = () => {
           <button
             onClick={fetchAlerts}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition cursor-pointer"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Odśwież</span>
@@ -749,6 +864,8 @@ export const DashboardAlertsPage: React.FC = () => {
             actionLoadingId={actionLoadingId}
             focusedAlertId={focusedAlertId}
             focusKey={focusKey}
+            mode={mapMode}
+            onModeChange={setMapMode}
           />
         </section>
       )}
@@ -769,23 +886,55 @@ export const DashboardAlertsPage: React.FC = () => {
 
         <form onSubmit={handleCreateAlert} className="space-y-5">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Lewa strona: Kategoria, Treść i Wykryta Lokalizacja */}
+            {/* Lewa strona: Kategoria, Krytyczność, Treść i Wykryta Lokalizacja */}
             <div className="lg:col-span-7 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Kategoria zdarzenia
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 text-xs sm:text-sm font-medium focus:bg-white focus:border-indigo-500 focus:outline-none transition"
+                  >
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Krytyczność zdarzenia (Alarm)
+                  </label>
+                  <select
+                    value={severity}
+                    onChange={(e) => setSeverity(e.target.value as any)}
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 text-xs sm:text-sm font-bold focus:bg-white focus:border-red-500 focus:outline-none transition cursor-pointer"
+                  >
+                    {SEVERITY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Kategoria zdarzenia
+                  Tytuł / Nazwa zdarzenia
                 </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 text-xs sm:text-sm font-medium focus:bg-white focus:border-indigo-500 focus:outline-none transition"
-                >
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="np. Fala wezbraniowa na rzece Nysa, Zamknięcie mostu drogowego..."
+                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 placeholder-slate-400 text-xs sm:text-sm font-bold focus:bg-white focus:border-indigo-500 focus:outline-none transition"
+                />
               </div>
 
               <div>
@@ -1200,13 +1349,16 @@ export const DashboardAlertsPage: React.FC = () => {
                 <select
                   value={activeSort}
                   onChange={(e) => setActiveSort(e.target.value as AlertSortOption)}
-                  className="bg-transparent text-xs text-slate-800 font-semibold focus:outline-none w-full"
+                  className="bg-transparent text-xs text-slate-800 font-semibold focus:outline-none w-full cursor-pointer"
                 >
                   <option value="date-desc">Data: Od najnowszych</option>
                   <option value="date-asc">Data: Od najstarszych</option>
+                  <option value="severity-desc">🚨 Krytyczność zdarzenia (najwyższa)</option>
+                  <option value="severity-asc">🟢 Krytyczność zdarzenia (najniższa)</option>
+                  <option value="demands-critical">📦 Posiadanie krytycznych żądań</option>
                   <option value="name-asc">Lokalizacja: A - Z</option>
                   <option value="name-desc">Lokalizacja: Z - A</option>
-                  <option value="duration-desc">Czas aktywności: Najdłuższy</option>
+                  <option value="duration-desc">Czas aktywności: Najdłużysz</option>
                   <option value="duration-asc">Czas aktywności: Najkrótszy</option>
                 </select>
               </div>
@@ -1237,6 +1389,8 @@ export const DashboardAlertsPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {activeAlerts.map((alert) => {
               const { totalActiveMs } = calculateAlertDurations(alert);
+              const severityInfo = getSeverityBadgeInfo(alert.severity);
+              const resourceUrgency = getHighestResourceUrgency(alert.neededResources);
 
               return (
                 <div
@@ -1245,10 +1399,20 @@ export const DashboardAlertsPage: React.FC = () => {
                 >
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold uppercase tracking-wider">
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        {alert.category}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {/* Badge Krytyczności */}
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                        >
+                          <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                          <span>{severityInfo.label}</span>
+                        </span>
+
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider">
+                          <AlertTriangle className="h-3 w-3 text-slate-500" />
+                          {alert.category}
+                        </span>
+                      </div>
 
                       {/* Badge lokalizacji */}
                       <button
@@ -1275,9 +1439,16 @@ export const DashboardAlertsPage: React.FC = () => {
                       </button>
                     </div>
 
-                    <p className="text-sm sm:text-base text-slate-900 font-semibold leading-relaxed">
-                      {alert.content}
-                    </p>
+                    <div className="space-y-1.5">
+                      {alert.title && (
+                        <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug tracking-tight">
+                          {alert.title}
+                        </h3>
+                      )}
+                      <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                        {alert.content}
+                      </p>
+                    </div>
 
                     {/* Zapotrzebowanie na zasoby */}
                     {Array.isArray(alert.neededResources) && alert.neededResources.length > 0 && (
@@ -1287,6 +1458,11 @@ export const DashboardAlertsPage: React.FC = () => {
                             <PackageCheck className="h-3.5 w-3.5 text-amber-700" />
                             <span>Zapotrzebowanie na zasoby ({alert.neededResources.length})</span>
                           </span>
+                          {resourceUrgency === 'krytyczny' && (
+                            <span className="px-2 py-0.5 rounded-lg bg-red-100 text-red-800 text-[10px] font-extrabold uppercase">
+                              🚨 Pilne / Krytyczne
+                            </span>
+                          )}
                         </div>
 
                         <div className="space-y-1.5">
@@ -1537,10 +1713,13 @@ export const DashboardAlertsPage: React.FC = () => {
                 <select
                   value={archiveSort}
                   onChange={(e) => setArchiveSort(e.target.value as ArchiveSortOption)}
-                  className="bg-transparent text-xs text-slate-800 font-semibold focus:outline-none w-full"
+                  className="bg-transparent text-xs text-slate-800 font-semibold focus:outline-none w-full cursor-pointer"
                 >
                   <option value="date-desc">Data: Od najnowszych</option>
                   <option value="date-asc">Data: Od najstarszych</option>
+                  <option value="severity-desc">🚨 Krytyczność zdarzenia (najwyższa)</option>
+                  <option value="severity-asc">🟢 Krytyczność zdarzenia (najniższa)</option>
+                  <option value="demands-critical">📦 Posiadanie krytycznych żądań</option>
                   <option value="name-asc">Lokalizacja: A-Z</option>
                   <option value="name-desc">Lokalizacja: Z-A</option>
                   <option value="duration-desc">Czas trwania: Od najdłuższego</option>
@@ -1563,6 +1742,7 @@ export const DashboardAlertsPage: React.FC = () => {
             {archivedAlerts.map((alert) => {
               const { totalActiveMs, firstEventDate, lastEventDate, totalEventsCount } =
                 calculateAlertDurations(alert);
+              const severityInfo = getSeverityBadgeInfo(alert.severity);
 
               return (
                 <div
@@ -1570,18 +1750,35 @@ export const DashboardAlertsPage: React.FC = () => {
                   className="rounded-3xl bg-white p-6 border border-slate-200/80 hover:border-slate-300 hover:shadow-md transition duration-200 space-y-3.5 flex flex-col justify-between"
                 >
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="rounded-xl bg-slate-100 px-2.5 py-1 text-xs text-slate-700 font-bold uppercase tracking-wider">
-                        {alert.category}
-                      </span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                        >
+                          <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                          <span>{severityInfo.label}</span>
+                        </span>
+
+                        <span className="rounded-xl bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700 font-bold uppercase tracking-wider">
+                          {alert.category}
+                        </span>
+                      </div>
+
                       <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 flex items-center gap-1">
                         <span>✓ Zarchiwizowany</span>
                       </span>
                     </div>
 
-                    <p className="text-sm sm:text-base text-slate-800 font-medium leading-relaxed">
-                      {alert.content}
-                    </p>
+                    <div className="space-y-1.5">
+                      {alert.title && (
+                        <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug tracking-tight">
+                          {alert.title}
+                        </h3>
+                      )}
+                      <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                        {alert.content}
+                      </p>
+                    </div>
 
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                       <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg">
@@ -1702,21 +1899,53 @@ export const DashboardAlertsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Kategoria
+                  </label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-slate-900 text-xs focus:bg-white focus:border-indigo-500 focus:outline-none"
+                  >
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Krytyczność zdarzenia
+                  </label>
+                  <select
+                    value={editSeverity}
+                    onChange={(e) => setEditSeverity(e.target.value as any)}
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-slate-900 text-xs font-bold focus:bg-white focus:border-red-500 focus:outline-none cursor-pointer"
+                  >
+                    {SEVERITY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Kategoria
+                  Tytuł / Nazwa zdarzenia
                 </label>
-                <select
-                  value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-slate-900 text-xs focus:bg-white focus:border-indigo-500 focus:outline-none"
-                >
-                  {CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="np. Fala wezbraniowa na rzece Nysa, Zamknięcie mostu drogowego..."
+                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-slate-900 text-xs font-bold focus:bg-white focus:border-indigo-500 focus:outline-none"
+                />
               </div>
 
               <div>

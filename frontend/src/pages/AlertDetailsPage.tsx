@@ -6,6 +6,7 @@ import {
   AlertsMap,
   AlertMapItem,
   NeededResourceItem,
+  getSeverityBadgeInfo,
 } from '../components/AlertsMap';
 import {
   ArrowLeft,
@@ -520,12 +521,27 @@ export const AlertDetailsPage: React.FC = () => {
         <div className="lg:col-span-7 space-y-6">
           <section className="rounded-3xl bg-white p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
-              >
-                {categoryBadge.icon}
-                <span>{alert.category}</span>
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {/* Badge Krytyczności */}
+                {(() => {
+                  const severityInfo = getSeverityBadgeInfo(alert.severity);
+                  return (
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                      <span>{severityInfo.label}</span>
+                    </span>
+                  );
+                })()}
+
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
+                >
+                  {categoryBadge.icon}
+                  <span>{alert.category}</span>
+                </span>
+              </div>
 
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 bg-slate-100 px-3 py-1 rounded-xl font-semibold border border-slate-200/60">
                 <MapPin className="h-3.5 w-3.5 text-red-500 shrink-0" />
@@ -545,13 +561,20 @@ export const AlertDetailsPage: React.FC = () => {
               </span>
             </div>
 
-            <div>
-              <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                Treść operacyjna komunikatu
-              </h2>
-              <p className="text-base sm:text-lg text-slate-900 font-semibold leading-relaxed">
-                {alert.content}
-              </p>
+            <div className="space-y-2">
+              {alert.title && (
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                  {alert.title}
+                </h1>
+              )}
+              <div>
+                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Treść operacyjna komunikatu
+                </h2>
+                <p className="text-base sm:text-lg text-slate-800 font-semibold leading-relaxed">
+                  {alert.content}
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs text-slate-600">

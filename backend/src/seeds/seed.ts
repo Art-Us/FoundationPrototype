@@ -1257,8 +1257,10 @@ export const seedDatabase = async () => {
 
     for (const a of alertsData) {
       await Alert.create({
+        title: (a as any).title || a.content.split('.')[0],
         content: a.content,
         category: a.category,
+        severity: (a as any).severity || 'wysoki',
         isActive: a.isActive,
         authorId: a.authorId,
         municipalityId: a.municipalityId,

@@ -107,17 +107,20 @@ export const getMyMunicipalityAlerts = async (
   res: Response
 ): Promise<void> => {
   try {
+    const scope = (req.query.scope as string) || 'all';
     let municipalityId = req.query.municipalityId as string;
 
-    if (!municipalityId && req.user?.organizationId) {
-      const userOrg = await Organization.findByPk(req.user.organizationId);
-      if (userOrg) {
-        municipalityId = userOrg.municipalityId;
+    if (scope !== 'all' && municipalityId !== 'all') {
+      if (!municipalityId && req.user?.organizationId) {
+        const userOrg = await Organization.findByPk(req.user.organizationId);
+        if (userOrg) {
+          municipalityId = userOrg.municipalityId;
+        }
       }
     }
 
     const whereClause: any = {};
-    if (municipalityId) {
+    if (scope !== 'all' && municipalityId && municipalityId !== 'all') {
       whereClause.municipalityId = municipalityId;
     }
 
@@ -171,8 +174,10 @@ export const createAlert = async (
 ): Promise<void> => {
   try {
     const {
+      title,
       content,
       category,
+      severity,
       municipality,
       municipalityId,
       locationName,
@@ -237,9 +242,14 @@ export const createAlert = async (
         allocations: Array.isArray(nr.allocations) ? nr.allocations : [],
       }));
 
+    const validSeverities = ['krytyczny', 'wysoki', 'średni', 'niski'];
+    const alertSeverity = severity && validSeverities.includes(severity) ? severity : 'wysoki';
+
     const alert = await Alert.create({
+      title: title ? title.trim() : null,
       content,
       category,
+      severity: alertSeverity,
       municipalityId: targetMunicipalityId,
       authorId: req.user!.id,
       isActive: true,
@@ -489,7 +499,7 @@ export const updateAlert = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { content, category, locationName, county, voivodeship, lat, lng, isActive } = req.body;
+    const { title, content, category, severity, locationName, county, voivodeship, lat, lng, isActive } = req.body;
 
     const alert = await Alert.findByPk(id);
     if (!alert) {
@@ -524,8 +534,12 @@ export const updateAlert = async (
       return;
     }
 
+    if (title !== undefined) alert.title = title ? title.trim() : null;
     if (content !== undefined) alert.content = content.trim();
     if (category !== undefined) alert.category = category;
+    if (severity !== undefined && ['krytyczny', 'wysoki', 'średni', 'niski'].includes(severity)) {
+      alert.severity = severity as any;
+    }
     if (locationName !== undefined) alert.locationName = locationName || null;
     if (county !== undefined) alert.county = county || null;
     if (voivodeship !== undefined) alert.voivodeship = voivodeship || null;
