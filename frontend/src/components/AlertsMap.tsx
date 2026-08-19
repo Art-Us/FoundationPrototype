@@ -116,6 +116,8 @@ interface AlertsMapProps {
   defaultMode?: MapDisplayMode;
   mode?: MapDisplayMode;
   onModeChange?: (mode: MapDisplayMode) => void;
+  availableModes?: MapDisplayMode[];
+  showNeededResourcesInPopup?: boolean;
 }
 
 // Domyślne współrzędne dla znanych gmin w rejonie
@@ -381,8 +383,11 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
   defaultMode = 'severity',
   mode: controlledMode,
   onModeChange,
+  availableModes = ['category', 'severity', 'resource_urgency'],
+  showNeededResourcesInPopup = true,
 }) => {
-  const [internalMode, setInternalMode] = useState<MapDisplayMode>(defaultMode);
+  const initialMode = availableModes.includes(defaultMode) ? defaultMode : availableModes[0] || 'severity';
+  const [internalMode, setInternalMode] = useState<MapDisplayMode>(initialMode);
   const activeMode = controlledMode !== undefined ? controlledMode : internalMode;
 
   const handleModeChange = (newMode: MapDisplayMode) => {
@@ -439,50 +444,58 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
   return (
     <div className="relative w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-700/70 bg-slate-900">
       {/* Przełącznik trybów mapy (Górny panel nawigacyjny) */}
-      <div className="absolute top-3 right-3 z-20 rounded-2xl bg-slate-900/90 p-1.5 shadow-2xl backdrop-blur-md border border-slate-700/80 text-xs pointer-events-auto flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => handleModeChange('category')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
-            activeMode === 'category'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-          }`}
-          title="Widok według kategorii zdarzenia"
-        >
-          <Layers className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Kategorie</span>
-        </button>
+      {availableModes.length > 1 && (
+        <div className="absolute top-3 right-3 z-20 rounded-2xl bg-slate-900/90 p-1.5 shadow-2xl backdrop-blur-md border border-slate-700/80 text-xs pointer-events-auto flex items-center gap-1">
+          {availableModes.includes('category') && (
+            <button
+              type="button"
+              onClick={() => handleModeChange('category')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
+                activeMode === 'category'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+              }`}
+              title="Widok według kategorii zdarzenia"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Kategorie</span>
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => handleModeChange('severity')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
-            activeMode === 'severity'
-              ? 'bg-red-600 text-white shadow-md'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-          }`}
-          title="Widok według krytyczności zdarzenia (🔴 Czerwony / 🟠 Pomarańczowy / 🟡 Żółty / 🟢 Zielony)"
-        >
-          <Flame className="h-3.5 w-3.5" />
-          <span>Krytyczność Zdarzenia</span>
-        </button>
+          {availableModes.includes('severity') && (
+            <button
+              type="button"
+              onClick={() => handleModeChange('severity')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
+                activeMode === 'severity'
+                  ? 'bg-red-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+              }`}
+              title="Widok według krytyczności zdarzenia (🔴 Czerwony / 🟠 Pomarańczowy / 🟡 Żółty / 🟢 Zielony)"
+            >
+              <Flame className="h-3.5 w-3.5" />
+              <span>Krytyczność Zdarzenia</span>
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => handleModeChange('resource_urgency')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
-            activeMode === 'resource_urgency'
-              ? 'bg-amber-600 text-white shadow-md'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-          }`}
-          title="Widok według posiadania krytycznych żądań zasobowych"
-        >
-          <Boxes className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Krytyczność Żądań Zasobów</span>
-          <span className="sm:hidden">Zasoby</span>
-        </button>
-      </div>
+          {availableModes.includes('resource_urgency') && (
+            <button
+              type="button"
+              onClick={() => handleModeChange('resource_urgency')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
+                activeMode === 'resource_urgency'
+                  ? 'bg-amber-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+              }`}
+              title="Widok według posiadania krytycznych żądań zasobowych"
+            >
+              <Boxes className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Krytyczność Żądań Zasobów</span>
+              <span className="sm:hidden">Zasoby</span>
+            </button>
+          )}
+        </div>
+      )}
 
       <MapContainer
         center={DEFAULT_CENTER}
@@ -580,50 +593,52 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
                     </div>
                   </div>
 
-                  {/* Zapotrzebowanie na zasoby */}
-                  {Array.isArray(alert.neededResources) && alert.neededResources.length > 0 ? (
-                    <div className="pt-1.5 border-t border-slate-100">
-                      <div className="text-[10px] font-bold uppercase text-amber-700 mb-1 flex items-center justify-between">
-                        <span>Zapotrzebowanie na zasoby:</span>
-                        {resourceUrgency === 'krytyczny' && (
-                          <span className="px-1.5 py-0.2 rounded bg-red-100 text-red-700 text-[9px] font-black uppercase">
-                            Pilne żądania
-                          </span>
-                        )}
-                      </div>
-                      <div className="space-y-1 max-h-32 overflow-y-auto">
-                        {alert.neededResources.map((nr) => (
-                          <div
-                            key={nr.id}
-                            className="flex items-center justify-between text-[11px] bg-amber-50/70 border border-amber-200/60 rounded-lg px-2 py-1"
-                          >
-                            <div className="flex items-center gap-1 truncate pr-1">
-                              <span
-                                className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                                  nr.urgency === 'krytyczny'
-                                    ? 'bg-red-500'
-                                    : nr.urgency === 'wysoki'
-                                    ? 'bg-orange-500'
-                                    : nr.urgency === 'średni'
-                                    ? 'bg-amber-500'
-                                    : 'bg-emerald-500'
-                                }`}
-                              ></span>
-                              <span className="font-semibold text-slate-800 truncate">
-                                {nr.name}
+                  {/* Zapotrzebowanie na zasoby (jeśli tryb i konfiguracja na to zezwalają) */}
+                  {showNeededResourcesInPopup && availableModes.includes('resource_urgency') && (
+                    Array.isArray(alert.neededResources) && alert.neededResources.length > 0 ? (
+                      <div className="pt-1.5 border-t border-slate-100">
+                        <div className="text-[10px] font-bold uppercase text-amber-700 mb-1 flex items-center justify-between">
+                          <span>Zapotrzebowanie na zasoby:</span>
+                          {resourceUrgency === 'krytyczny' && (
+                            <span className="px-1.5 py-0.2 rounded bg-red-100 text-red-700 text-[9px] font-black uppercase">
+                              Pilne żądania
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {alert.neededResources.map((nr) => (
+                            <div
+                              key={nr.id}
+                              className="flex items-center justify-between text-[11px] bg-amber-50/70 border border-amber-200/60 rounded-lg px-2 py-1"
+                            >
+                              <div className="flex items-center gap-1 truncate pr-1">
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                                    nr.urgency === 'krytyczny'
+                                      ? 'bg-red-500'
+                                      : nr.urgency === 'wysoki'
+                                      ? 'bg-orange-500'
+                                      : nr.urgency === 'średni'
+                                      ? 'bg-amber-500'
+                                      : 'bg-emerald-500'
+                                  }`}
+                                ></span>
+                                <span className="font-semibold text-slate-800 truncate">
+                                  {nr.name}
+                                </span>
+                              </div>
+                              <span className="font-mono text-slate-600 shrink-0 ml-1 text-[10px] font-bold">
+                                {nr.quantityAllocated} / {nr.quantityNeeded} {nr.unit}
                               </span>
                             </div>
-                            <span className="font-mono text-slate-600 shrink-0 ml-1 text-[10px] font-bold">
-                              {nr.quantityAllocated} / {nr.quantityNeeded} {nr.unit}
-                            </span>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="pt-1.5 border-t border-slate-100 text-[11px] text-slate-400 italic">
-                      Brak otwartych żądań zasobów
-                    </div>
+                    ) : (
+                      <div className="pt-1.5 border-t border-slate-100 text-[11px] text-slate-400 italic">
+                        Brak otwartych żądań zasobów
+                      </div>
+                    )
                   )}
 
                   {isAllowedToDeactivate && onDeactivate && (

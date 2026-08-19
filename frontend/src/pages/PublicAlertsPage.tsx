@@ -6,8 +6,6 @@ import {
   MapDisplayMode,
   getSeverityBadgeInfo,
   getAlertSeverityScore,
-  getAlertResourceUrgencyScore,
-  getHighestResourceUrgency,
 } from '../components/AlertsMap';
 import {
   MapPin,
@@ -28,7 +26,6 @@ import {
   Compass,
   X,
   ArrowUpDown,
-  Boxes,
 } from 'lucide-react';
 
 type ViewMode = 'split' | 'grid' | 'map';
@@ -36,8 +33,7 @@ type PublicSortOption =
   | 'date-desc'
   | 'date-asc'
   | 'severity-desc'
-  | 'severity-asc'
-  | 'demands-critical';
+  | 'severity-asc';
 
 export const PublicAlertsPage: React.FC = () => {
   const [alerts, setAlerts] = useState<AlertMapItem[]>([]);
@@ -193,13 +189,6 @@ export const PublicAlertsPage: React.FC = () => {
         const scoreA = getAlertSeverityScore(a.severity);
         const scoreB = getAlertSeverityScore(b.severity);
         if (scoreA !== scoreB) return scoreA - scoreB;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      }
-
-      if (sortBy === 'demands-critical') {
-        const scoreA = getAlertResourceUrgencyScore(a);
-        const scoreB = getAlertResourceUrgencyScore(b);
-        if (scoreB !== scoreA) return scoreB - scoreA;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
 
@@ -457,7 +446,6 @@ export const PublicAlertsPage: React.FC = () => {
                 <option value="date-asc">Najstarsze</option>
                 <option value="severity-desc">🚨 Krytyczność (najwyższa)</option>
                 <option value="severity-asc">🟢 Krytyczność (najniższa)</option>
-                <option value="demands-critical">📦 Posiadanie krytycznych żądań</option>
               </select>
             </div>
           </div>
@@ -501,7 +489,7 @@ export const PublicAlertsPage: React.FC = () => {
                   <span>Mapa Ostrzeżeń Kryzysowych ({filteredAlerts.length})</span>
                 </div>
                 <span className="text-xs text-slate-400 hidden sm:inline">
-                  Przełączaj tryb mapy (Kategorie / Krytyczność zdarzenia / Żądania zasobów)
+                  Przełączaj tryb mapy (Kategorie / Krytyczność zdarzenia)
                 </span>
               </div>
 
@@ -512,6 +500,8 @@ export const PublicAlertsPage: React.FC = () => {
                 focusKey={focusKey}
                 mode={mapMode}
                 onModeChange={setMapMode}
+                availableModes={['category', 'severity']}
+                showNeededResourcesInPopup={false}
               />
             </section>
           )}
@@ -528,8 +518,7 @@ export const PublicAlertsPage: React.FC = () => {
                     sortBy === 'date-desc' ? 'Najnowsze' :
                     sortBy === 'date-asc' ? 'Najstarsze' :
                     sortBy === 'severity-desc' ? 'Krytyczność zdarzenia (najwyższa)' :
-                    sortBy === 'severity-asc' ? 'Krytyczność zdarzenia (najniższa)' :
-                    'Posiadanie krytycznych żądań'
+                    'Krytyczność zdarzenia (najniższa)'
                   }</strong>
                 </span>
               </div>
@@ -558,7 +547,6 @@ export const PublicAlertsPage: React.FC = () => {
                   {filteredAlerts.map((alert) => {
                     const categoryBadge = getCategoryBadge(alert.category);
                     const severityInfo = getSeverityBadgeInfo(alert.severity);
-                    const resourceUrgency = getHighestResourceUrgency(alert.neededResources);
                     const orgName = alert.author?.organization?.name || 'Służby Ratunkowe';
                     const orgType = alert.author?.organization?.type;
                     const authorName = alert.author
@@ -627,29 +615,6 @@ export const PublicAlertsPage: React.FC = () => {
                               {alert.content}
                             </p>
                           </div>
-
-                          {/* Indykator krytyczności żądań zasobowych */}
-                          {Array.isArray(alert.neededResources) && alert.neededResources.length > 0 && (
-                            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2">
-                              {resourceUrgency === 'krytyczny' && (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-red-50 text-red-700 text-[11px] font-bold border border-red-200">
-                                  <Boxes className="h-3 w-3 text-red-600" />
-                                  <span>🚨 Posiada krytyczne zapotrzebowania na zasoby</span>
-                                </span>
-                              )}
-                              {resourceUrgency === 'wysoki' && (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-orange-50 text-orange-700 text-[11px] font-bold border border-orange-200">
-                                  <Boxes className="h-3 w-3 text-orange-600" />
-                                  <span>Posiada pilne zapotrzebowania na zasoby</span>
-                                </span>
-                              )}
-                              {resourceUrgency === 'zaspokojone' && (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
-                                  <span>✅ Wszystkie zapotrzebowania zaspokojone</span>
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </div>
 
                         {/* Dolna belka karty: Organizacja, Przycisk przejścia do mapy & Czas */}
