@@ -18,7 +18,6 @@ import {
   Search,
   User,
   ShieldCheck,
-  Calendar,
   Waves,
   Truck,
   AlertOctagon,
@@ -1309,25 +1308,26 @@ export const OperationalAlertsPage: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
                               onClick={() => navigate(`/dashboard/operational/alerts/${alert.id}`)}
-                              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
-                              title="Przejdź do wpisów, forum i czatu tego alertu"
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
+                              title="Wpisy i czat operacyjny"
                             >
                               <MessageSquare className="h-3.5 w-3.5 text-indigo-400" />
-                              <span>Wpisy & Czat ({Array.isArray(alert.posts) ? alert.posts.length : 0})</span>
+                              <span className="text-[11px] font-mono">
+                                {Array.isArray(alert.posts) ? alert.posts.length : 0}
+                              </span>
                             </button>
 
                             <button
                               type="button"
                               onClick={() => handleFocusOnMap(alert)}
-                              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition border border-indigo-200/60 shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
-                              title="Zlokalizuj to zdarzenie na mapie"
+                              className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition border border-indigo-200/60 shadow-2xs cursor-pointer active:scale-95"
+                              title="Zlokalizuj na mapie"
                             >
-                              <MapPin className="h-3.5 w-3.5 text-indigo-600" />
-                              <span>Na mapie</span>
+                              <MapPin className="h-3.5 w-3.5" />
                             </button>
 
                             {user?.role === 'admin' && (
@@ -1335,18 +1335,16 @@ export const OperationalAlertsPage: React.FC = () => {
                                 type="button"
                                 onClick={() => handleDeleteAlert(alert)}
                                 disabled={actionLoadingId === alert.id}
-                                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 text-xs font-bold transition border border-rose-200/80 shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                                className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 transition border border-rose-200/80 shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
                                 title="Całkowicie usuń ten alert (Tylko Admin)"
                               >
-                                <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                                <span>Usuń</span>
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             )}
 
-                            <div className="flex items-center gap-1 text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 font-mono text-[11px]">
-                              <Calendar className="h-3 w-3 text-slate-400" />
-                              <time dateTime={alert.createdAt}>{formatDate(alert.createdAt)}</time>
-                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline ml-1">
+                              {formatDate(alert.createdAt)}
+                            </span>
                           </div>
                         </div>
                       </article>
