@@ -315,13 +315,13 @@ export const PublicAlertsPage: React.FC = () => {
       <section className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
           {/* Pole wyszukiwania */}
-          <div className="md:col-span-6 relative">
+          <div className="md:col-span-4 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Wpisz województwo, powiat, gminę, miasto lub treść..."
+              placeholder="Wpisz miejscowość lub treść..."
               className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 pl-10 pr-10 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition"
             />
             {searchQuery && (
@@ -334,14 +334,33 @@ export const PublicAlertsPage: React.FC = () => {
             )}
           </div>
 
-          {/* Filtr Województwa */}
+          {/* Filtr Rodzaju / Kategorii Alertu (Lista rozwijana) */}
           <div className="md:col-span-3">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 px-3 text-xs sm:text-sm text-slate-700 font-semibold focus:bg-white focus:border-indigo-500 focus:outline-none cursor-pointer transition"
+            >
+              <option value="all">Wszystkie rodzaje alertów ({alerts.length})</option>
+              {categories.map((cat) => {
+                const count = alerts.filter((a) => a.category === cat).length;
+                return (
+                  <option key={cat} value={cat}>
+                    {cat} ({count})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          {/* Filtr Województwa */}
+          <div className="md:col-span-2">
             <select
               value={selectedVoivodeship}
               onChange={(e) => handleVoivodeshipChange(e.target.value)}
               className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 px-3 text-xs sm:text-sm text-slate-700 font-semibold focus:bg-white focus:border-indigo-500 focus:outline-none cursor-pointer transition"
             >
-              <option value="all">Wszystkie województwa ({voivodeships.length})</option>
+              <option value="all">Wszystkie woj. ({voivodeships.length})</option>
               {voivodeships.map((v) => (
                 <option key={v} value={v}>
                   woj. {v}
@@ -367,7 +386,7 @@ export const PublicAlertsPage: React.FC = () => {
               ) : (
                 <>
                   <option value="all">
-                    Wszystkie powiaty i miasta ({availableCountiesAndCities.length})
+                    Wszystkie powiaty ({availableCountiesAndCities.length})
                   </option>
                   {availableCountiesAndCities.map((item) => (
                     <option key={item} value={item}>
@@ -380,8 +399,8 @@ export const PublicAlertsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Pasek przełączania widoku, chipy kategorii i sortowanie */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-3 border-t border-slate-100">
+        {/* Pasek przełączania widoku i sortowanie */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-100">
           {/* Przełącznik widoku */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
             <button
@@ -417,35 +436,8 @@ export const PublicAlertsPage: React.FC = () => {
               }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
-              <span>Karty</span>
+              <span>Karty ({filteredAlerts.length})</span>
             </button>
-          </div>
-
-          {/* Chipy kategorii */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`rounded-xl px-3 py-1.5 font-bold transition shrink-0 ${
-                selectedCategory === 'all'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Wszystkie ({alerts.length})
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`rounded-xl px-2.5 py-1.5 font-semibold transition shrink-0 ${
-                  selectedCategory === cat
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {cat.split(' ')[0]}
-              </button>
-            ))}
           </div>
 
           {/* Sortowanie i odświeżanie */}

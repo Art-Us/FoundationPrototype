@@ -11,14 +11,15 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
-  Send,
   Eye,
-  Calendar,
   Layers,
-  ArrowUp,
-  ArrowDown,
+  ArrowUpDown,
   Filter,
   Layers3,
+  RotateCcw,
+  Clock,
+  ListFilter,
+  Table as TableIcon,
 } from 'lucide-react';
 
 export type ResourceType = 'ludzie' | 'woda' | 'sprzet' | 'inne';
@@ -194,46 +195,51 @@ const TIMEFRAMES_CONFIG: {
   key: ResourceTimeframe;
   label: string;
   subLabel: string;
+  badgeBg: string;
 }[] = [
   {
     key: '24h',
     label: '24h',
     subLabel: 'Natychmiastowe',
+    badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   },
   {
     key: '48h',
     label: '48h',
     subLabel: 'Krótkoterminowe',
+    badgeBg: 'bg-blue-50 text-blue-700 border-blue-200',
   },
   {
     key: '72h',
     label: '72h',
     subLabel: 'Średnioterminowe',
+    badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
   },
   {
     key: 'tydzien',
     label: 'Tydzień',
     subLabel: 'Długoterminowe',
+    badgeBg: 'bg-purple-50 text-purple-700 border-purple-200',
   },
 ];
 
 type CategoryFilter = 'all' | ResourceType;
 type SubSortField = 'name' | 'quantity' | 'owner';
 type SubSortDirection = 'asc' | 'desc';
+type ResourcesViewMode = 'table' | 'cards';
 
 export const DashboardResourcesPage: React.FC = () => {
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Filtrowanie według kategorii: 'all' lub 'ludzie' / 'woda' / 'sprzet' / 'inne'
+  // Filtrowanie według kategorii i organizacji
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('all');
-
-  // Filtrowanie według posiadacza (Organizacji)
   const [selectedOrganizationFilter, setSelectedOrganizationFilter] = useState<string>('all');
+  const [activeViewMode, setActiveViewMode] = useState<ResourcesViewMode>('table');
 
-  // Sortowanie podkategorii w widoku szczegółowym
-  const [subSortField, setSubSortField] = useState<SubSortField>('name');
-  const [subSortDirection, setSubSortDirection] = useState<SubSortDirection>('asc');
+  // Sortowanie podkategorii
+  const [subSortField, setSubSortField] = useState<SubSortField>('quantity');
+  const [subSortDirection, setSubSortDirection] = useState<SubSortDirection>('desc');
 
   // Modal zgłaszania zasobu
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -326,6 +332,35 @@ export const DashboardResourcesPage: React.FC = () => {
 
     return mat;
   }, [filteredByOrgResources]);
+
+  // Sumy ogólne i natychmiastowe (24h) do kafelków KPI
+  const totalStats = useMemo(() => {
+    let people = 0;
+    let water = 0;
+    let equipment = 0;
+    let other = 0;
+
+    let people24h = effectiveMatrix.ludzie['24h'] || 0;
+    let water24h = effectiveMatrix.woda['24h'] || 0;
+    let equipment24h = effectiveMatrix.sprzet['24h'] || 0;
+    let other24h = effectiveMatrix.inne['24h'] || 0;
+
+    Object.values(effectiveMatrix.ludzie || {}).forEach((v) => (people += v));
+    Object.values(effectiveMatrix.woda || {}).forEach((v) => (water += v));
+    Object.values(effectiveMatrix.sprzet || {}).forEach((v) => (equipment += v));
+    Object.values(effectiveMatrix.inne || {}).forEach((v) => (other += v));
+
+    return {
+      people,
+      water,
+      equipment,
+      other,
+      people24h,
+      water24h,
+      equipment24h,
+      other24h,
+    };
+  }, [effectiveMatrix]);
 
   // Zgłaszanie zasobów
   const handleCreateResource = async (e: React.FormEvent) => {
@@ -463,21 +498,6 @@ export const DashboardResourcesPage: React.FC = () => {
     });
   }, [selectedCell, filteredByOrgResources]);
 
-  // Sumy ogólne do kafelków KPI
-  const totalStats = useMemo(() => {
-    let people = 0;
-    let water = 0;
-    let equipment = 0;
-    let other = 0;
-
-    Object.values(effectiveMatrix.ludzie || {}).forEach((v) => (people += v));
-    Object.values(effectiveMatrix.woda || {}).forEach((v) => (water += v));
-    Object.values(effectiveMatrix.sprzet || {}).forEach((v) => (equipment += v));
-    Object.values(effectiveMatrix.inne || {}).forEach((v) => (other += v));
-
-    return { people, water, equipment, other };
-  }, [effectiveMatrix]);
-
   const activeConfig =
     selectedCategory !== 'all'
       ? RESOURCE_TYPES_CONFIG.find((c) => c.key === selectedCategory)
@@ -506,45 +526,64 @@ export const DashboardResourcesPage: React.FC = () => {
               <AlertTriangle className="h-5 w-5 shrink-0" />
             )}
             <span>{toast.message}</span>
-            <button onClick={() => setToast(null)} className="ml-2 hover:opacity-75">
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 hover:opacity-75 cursor-pointer"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
       )}
 
-      {/* Nagłówek i przyciski akcji */}
+      {/* ========================================================================= */}
+      {/* 1. HERO NAGŁÓWEK & PRZYCISKI AKCJI                                       */}
+      {/* ========================================================================= */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-indigo-600 font-semibold text-xs tracking-wider uppercase mb-1">
             <Database className="h-4 w-4" />
-            <span>Matryca Logistyczna • Dostępność i Filtrowanie Posiadaczy</span>
+            <span>Matryca Logistyczna • Gotowość Operacyjna Służb i Organizacji</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Matryca Zasobów Ratunkowych
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {selectedOrgName
-              ? `Wyświetlanie zasobów należących wyłącznie do: ${selectedOrgName}`
-              : 'Dostępność zasobów w horyzontach czasowych (24h, 48h, 72h, Tydzień)'}
+              ? `Wyświetlanie zasobów zadeklarowanych przez: ${selectedOrgName}`
+              : 'Dostępność zasobów ratowniczych w horyzontach czasowych (24h, 48h, 72h, Tydzień).'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
+            type="button"
+            onClick={fetchResources}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Odśwież stan matrycy zasobów"
+          >
+            <RotateCcw className={`h-4 w-4 ${isLoading ? 'animate-spin text-indigo-600' : ''}`} />
+            <span className="hidden sm:inline">Odśwież</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               setFormSubcategory(RESOURCE_TYPES_CONFIG[0].subcategoriesPreset[0].name);
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-600/25 transition transform active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition transform active:scale-95 cursor-pointer"
           >
             <Plus className="h-4 w-4 stroke-[3]" />
-            <span>Zgłoś zasoby</span>
+            <span>Zgłoś nowe zasoby</span>
           </button>
         </div>
       </div>
 
-      {/* Kafelki KPI w stylu Metoxi (Pastelowe okrągłe kontenery ikon) */}
+      {/* ========================================================================= */}
+      {/* 2. KAFELKI KPI PODSUMOWANIA (LUDZIE, WODA, SPRZĘT, INNE)                 */}
+      {/* ========================================================================= */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Ludzie */}
         <div className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs flex items-center justify-between">
@@ -555,6 +594,10 @@ export const DashboardResourcesPage: React.FC = () => {
             <div className="text-2xl font-black text-slate-900">
               {totalStats.people.toLocaleString('pl-PL')}{' '}
               <span className="text-xs font-normal text-slate-500">osób</span>
+            </div>
+            <div className="text-[11px] font-semibold text-purple-700 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>W 24h: {totalStats.people24h} osób</span>
             </div>
           </div>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-600 shadow-xs shrink-0">
@@ -572,6 +615,10 @@ export const DashboardResourcesPage: React.FC = () => {
               {totalStats.water.toLocaleString('pl-PL')}{' '}
               <span className="text-xs font-normal text-slate-500">L</span>
             </div>
+            <div className="text-[11px] font-semibold text-cyan-700 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>W 24h: {totalStats.water24h} L</span>
+            </div>
           </div>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600 shadow-xs shrink-0">
             <Droplets className="h-6 w-6" />
@@ -587,6 +634,10 @@ export const DashboardResourcesPage: React.FC = () => {
             <div className="text-2xl font-black text-slate-900">
               {totalStats.equipment.toLocaleString('pl-PL')}{' '}
               <span className="text-xs font-normal text-slate-500">szt.</span>
+            </div>
+            <div className="text-[11px] font-semibold text-amber-700 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>W 24h: {totalStats.equipment24h} szt.</span>
             </div>
           </div>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 shadow-xs shrink-0">
@@ -604,6 +655,10 @@ export const DashboardResourcesPage: React.FC = () => {
               {totalStats.other.toLocaleString('pl-PL')}{' '}
               <span className="text-xs font-normal text-slate-500">jedn.</span>
             </div>
+            <div className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>W 24h: {totalStats.other24h} jedn.</span>
+            </div>
           </div>
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-xs shrink-0">
             <Package className="h-6 w-6" />
@@ -611,80 +666,116 @@ export const DashboardResourcesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Pasek filtrowania kategorii oraz posiadacza zasobów */}
-      <div className="rounded-3xl bg-white p-4 border border-slate-200/80 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        {/* Filtry Kategorii */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold text-slate-400 flex items-center gap-1 mr-1">
-            <Filter className="h-3.5 w-3.5 text-indigo-600" />
-            <span>Kategoria:</span>
-          </span>
+      {/* ========================================================================= */}
+      {/* 3. LOGICZNY PASEK STEROWANIA I FILTRÓW                                   */}
+      {/* ========================================================================= */}
+      <div className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          {/* Segment Kategorii */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-slate-400 flex items-center gap-1 mr-1">
+              <Filter className="h-3.5 w-3.5 text-indigo-600" />
+              <span>Kategoria:</span>
+            </span>
 
-          <button
-            onClick={() => setSelectedCategory('all')}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition ${
-              selectedCategory === 'all'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-            }`}
-          >
-            <Layers className="h-3.5 w-3.5" />
-            <span>Wszystkie</span>
-          </button>
-
-          {RESOURCE_TYPES_CONFIG.map((cfg) => (
             <button
-              key={cfg.key}
-              onClick={() => setSelectedCategory(cfg.key)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
-                selectedCategory === cfg.key
+              type="button"
+              onClick={() => setSelectedCategory('all')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                selectedCategory === 'all'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
               }`}
             >
-              {cfg.icon}
-              <span>{cfg.shortName}</span>
+              <Layers className="h-3.5 w-3.5" />
+              <span>Wszystkie</span>
             </button>
-          ))}
-        </div>
 
-        {/* Filtr Posiadacza (Organizacji) */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
-            <Building className="h-3.5 w-3.5 text-teal-600" />
-            <span>Posiadacz zasobu:</span>
-          </span>
-
-          <select
-            value={selectedOrganizationFilter}
-            onChange={(e) => setSelectedOrganizationFilter(e.target.value)}
-            className="rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none max-w-[220px] sm:max-w-[280px] font-semibold"
-          >
-            <option value="all">Wszystkie organizacje ({availableOrganizations.length})</option>
-            {availableOrganizations.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name} {org.type ? `(${org.type.toUpperCase()})` : ''}
-              </option>
+            {RESOURCE_TYPES_CONFIG.map((cfg) => (
+              <button
+                key={cfg.key}
+                type="button"
+                onClick={() => setSelectedCategory(cfg.key)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  selectedCategory === cfg.key
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                }`}
+              >
+                {cfg.icon}
+                <span>{cfg.shortName}</span>
+              </button>
             ))}
-          </select>
+          </div>
 
-          {selectedOrganizationFilter !== 'all' && (
-            <button
-              onClick={() => setSelectedOrganizationFilter('all')}
-              title="Wyczyść filtr organizacji"
-              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+          {/* Wybór Posiadacza Zasobów (Organizacji) & Widok */}
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5">
+              <Building className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+              <span className="text-xs text-slate-500 font-medium hidden sm:inline">Posiadacz:</span>
+              <select
+                value={selectedOrganizationFilter}
+                onChange={(e) => setSelectedOrganizationFilter(e.target.value)}
+                className="bg-transparent text-xs text-slate-800 focus:outline-none max-w-[200px] sm:max-w-[260px] font-bold cursor-pointer"
+              >
+                <option value="all">Wszystkie organizacje ({availableOrganizations.length})</option>
+                {availableOrganizations.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name} {org.type ? `(${org.type.toUpperCase()})` : ''}
+                  </option>
+                ))}
+              </select>
+
+              {selectedOrganizationFilter !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrganizationFilter('all')}
+                  title="Wyczyść filtr organizacji"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Przełącznik Widoku Tabela vs Karty (gdy wybrana konkretna kategoria) */}
+            {selectedCategory !== 'all' && (
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setActiveViewMode('table')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    activeViewMode === 'table'
+                      ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <TableIcon className="h-3.5 w-3.5" />
+                  <span>Macierz</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveViewMode('cards')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    activeViewMode === 'cards'
+                      ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ListFilter className="h-3.5 w-3.5" />
+                  <span>Katalog ({subcategoryListForSelected.length})</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. WIDOK GŁÓWNY: CZYSTA TABELA OGÓLNA (ALL)                             */}
+      {/* 4. GŁÓWNA TABELA MATRYCY CZASOWEJ (WIDOK WSZYSTKIE LUB TABELA)          */}
       {/* ========================================================================= */}
-      {selectedCategory === 'all' && (
-        <div className="rounded-3xl bg-white shadow-xs border border-slate-200/80 overflow-hidden">
+      {(selectedCategory === 'all' || activeViewMode === 'table') && (
+        <div className="rounded-3xl bg-white shadow-xs border border-slate-200/80 overflow-hidden space-y-0">
           <div className="border-b border-slate-100 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-50/50">
             <div className="flex items-center gap-2">
               <Layers3 className="h-5 w-5 text-indigo-600" />
@@ -722,7 +813,9 @@ export const DashboardResourcesPage: React.FC = () => {
               </thead>
 
               <tbody className="divide-y divide-slate-100 text-sm">
-                {RESOURCE_TYPES_CONFIG.map((resType) => (
+                {RESOURCE_TYPES_CONFIG.filter(
+                  (resType) => selectedCategory === 'all' || selectedCategory === resType.key
+                ).map((resType) => (
                   <tr
                     key={resType.key}
                     className="hover:bg-slate-50/60 transition duration-150 group"
@@ -789,245 +882,241 @@ export const DashboardResourcesPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. WIDOK FILTROWANY: TYLKO WYBRANA KATEGORIA ZE SZCZEGÓŁOWYM WYJAŚNIENIEM */}
+      {/* 5. WIDOK KATALOGU PODKATEGORII (GDY WYBRANA KATEGORIA + WIDOK KART)      */}
       {/* ========================================================================= */}
-      {selectedCategory !== 'all' && activeConfig && (
-        <div className="rounded-3xl bg-white shadow-xs border border-slate-200/80 overflow-hidden space-y-4 p-6">
+      {selectedCategory !== 'all' && activeConfig && activeViewMode === 'cards' && (
+        <div className="rounded-3xl bg-white shadow-xs border border-slate-200/80 p-6 space-y-5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-slate-100">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${activeConfig.iconBg}`}>
                   {activeConfig.icon}
                 </div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Szczegółowe Zestawienie Specjalizacji: {activeConfig.label}
-                </h2>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  {activeConfig.label}
+                </h3>
               </div>
-              <p className="text-xs text-slate-500">
-                {activeConfig.description} • Jednostka: <strong>{activeConfig.unit}</strong>
-              </p>
+              <p className="text-xs text-slate-500">{activeConfig.description}</p>
             </div>
 
-            {/* Sortowanie wewnątrz wybranej kategorii */}
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs">
-              <span className="text-slate-500 font-semibold pl-2">Sortuj po:</span>
-              <button
-                onClick={() => {
-                  if (subSortField === 'name') {
-                    setSubSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-                  } else {
-                    setSubSortField('name');
-                    setSubSortDirection('asc');
+            {/* Sortowanie podkategorii */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-slate-400 font-medium">Sortuj wg:</span>
+              <div className="flex items-center bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 text-xs">
+                <select
+                  value={subSortField}
+                  onChange={(e) => setSubSortField(e.target.value as SubSortField)}
+                  className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer"
+                >
+                  <option value="quantity">Łączna ilość</option>
+                  <option value="name">Nazwa podkategorii</option>
+                  <option value="owner">Nazwa organizacji</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSubSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
                   }
-                }}
-                className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
-                  subSortField === 'name' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>Nazwa</span>
-                {subSortField === 'name' && (subSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-              </button>
-
-              <button
-                onClick={() => {
-                  if (subSortField === 'quantity') {
-                    setSubSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-                  } else {
-                    setSubSortField('quantity');
-                    setSubSortDirection('desc');
-                  }
-                }}
-                className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
-                  subSortField === 'quantity' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>Ilość</span>
-                {subSortField === 'quantity' && (subSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-              </button>
-
-              <button
-                onClick={() => {
-                  if (subSortField === 'owner') {
-                    setSubSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-                  } else {
-                    setSubSortField('owner');
-                    setSubSortDirection('asc');
-                  }
-                }}
-                className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
-                  subSortField === 'owner' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>Posiadacz</span>
-                {subSortField === 'owner' && (subSortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-              </button>
+                  className="ml-2 text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                  title="Zmień kierunek sortowania"
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                  <th className="py-3 px-4 w-1/3">Rodzaj / Specjalizacja i Wyjaśnienie</th>
-                  <th className="py-3 px-3 text-center">24h</th>
-                  <th className="py-3 px-3 text-center">48h</th>
-                  <th className="py-3 px-3 text-center">72h</th>
-                  <th className="py-3 px-3 text-center">Tydzień</th>
-                  <th className="py-3 px-4 text-right">Zgłaszający Posiadacze</th>
-                </tr>
-              </thead>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {subcategoryListForSelected.map((sub) => (
+              <div
+                key={sub.name}
+                className="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 space-y-3 hover:border-indigo-200 transition shadow-2xs"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                      {sub.name}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                      {sub.description}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-lg font-black text-slate-900 font-mono">
+                      {sub.total.toLocaleString('pl-PL')}
+                    </span>
+                    <span className="block text-[10px] text-slate-400">
+                      {activeConfig.unit}
+                    </span>
+                  </div>
+                </div>
 
-              <tbody className="divide-y divide-slate-100">
-                {subcategoryListForSelected.map((item) => {
-                  return (
-                    <tr
-                      key={item.name}
-                      className="hover:bg-slate-50/60 transition duration-150 group"
-                    >
-                      {/* Nazwa i Wyjaśnienie podkategorii */}
-                      <td className="py-3.5 px-4">
-                        <div className="space-y-0.5">
-                          <div className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition">
-                            {item.name}
-                          </div>
-                          <div className="text-xs text-slate-500 leading-relaxed">
-                            {item.description}
-                          </div>
+                {/* Horyzonty czasowe */}
+                <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
+                  {TIMEFRAMES_CONFIG.map((tf) => {
+                    const q = sub.quantities[tf.key] || 0;
+                    return (
+                      <div
+                        key={tf.key}
+                        onClick={() =>
+                          setSelectedCell({
+                            type: selectedCategory,
+                            subcategory: sub.name,
+                            timeframe: tf.key,
+                          })
+                        }
+                        className={`p-2 rounded-xl border transition cursor-pointer select-none ${
+                          q > 0
+                            ? `${tf.badgeBg} font-bold shadow-2xs hover:scale-105`
+                            : 'bg-white text-slate-300 border-slate-100'
+                        }`}
+                      >
+                        <span className="block text-[10px] uppercase text-slate-400 font-normal">
+                          {tf.label}
+                        </span>
+                        <span className="font-mono text-xs">{q > 0 ? q : '-'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Lista jednostek posiadających ten zasób */}
+                {sub.owners.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200/60 text-[11px] space-y-1">
+                    <span className="font-bold text-slate-600 block">
+                      Zadeklarowane przez jednostki ({sub.owners.length}):
+                    </span>
+                    <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                      {sub.owners.map((owner, idx) => (
+                        <div
+                          key={`${owner.name}-${idx}`}
+                          className="flex items-center justify-between text-slate-700 bg-white px-2 py-1 rounded-lg border border-slate-200/60"
+                        >
+                          <span className="truncate max-w-[200px] font-medium">
+                            {owner.name}
+                          </span>
+                          <span className="font-mono font-bold text-indigo-700">
+                            {owner.quantity} {activeConfig.unit} ({owner.timeframe})
+                          </span>
                         </div>
-                      </td>
-
-                      {/* Komórki 24h, 48h, 72h, Tydzień dla danej podkategorii */}
-                      {TIMEFRAMES_CONFIG.map((tf) => {
-                        const subQty = item.quantities[tf.key];
-                        return (
-                          <td
-                            key={tf.key}
-                            onClick={() =>
-                              setSelectedCell({
-                                type: selectedCategory as ResourceType,
-                                subcategory: item.name,
-                                timeframe: tf.key,
-                              })
-                            }
-                            className="py-3 px-3 text-center cursor-pointer hover:bg-indigo-50/40 transition select-none font-mono"
-                          >
-                            {subQty > 0 ? (
-                              <span className="inline-block px-2.5 py-1 rounded-xl bg-slate-100 text-indigo-700 font-bold border border-slate-200 text-xs hover:border-indigo-500">
-                                {subQty.toLocaleString('pl-PL')} {activeConfig.unit}
-                              </span>
-                            ) : (
-                              <span className="text-slate-300 text-xs font-light">-</span>
-                            )}
-                          </td>
-                        );
-                      })}
-
-                      {/* Posiadacze */}
-                      <td className="py-3.5 px-4 text-right">
-                        {item.owners.length === 0 ? (
-                          <span className="text-xs text-slate-400 italic">Brak deklaracji</span>
-                        ) : (
-                          <div className="flex flex-col items-end gap-1">
-                            {Array.from(new Set(item.owners.map((o) => o.name))).map((ownerName) => (
-                              <span
-                                key={ownerName}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200"
-                              >
-                                <Building className="h-3 w-3 text-indigo-600" />
-                                <span>{ownerName}</span>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* 3. MODAL / SZCZEGÓŁY WYBRANEJ KOMÓRKI MATRYCY                           */}
+      {/* 6. MODAL SZCZEGÓŁÓW KOMÓRKI MATRYCY                                      */}
       {/* ========================================================================= */}
       {selectedCell && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-xl rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                  <Database className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Szczegóły zgłoszeń:{' '}
-                    {RESOURCE_TYPES_CONFIG.find((c) => c.key === selectedCell.type)?.label}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    {selectedCell.subcategory && (
-                      <span className="text-indigo-600 font-semibold mr-2">
-                        [{selectedCell.subcategory}]
-                      </span>
-                    )}
-                    Horyzont: <strong className="text-indigo-700">{selectedCell.timeframe.toUpperCase()}</strong>
-                  </p>
-                </div>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-5 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-indigo-600 font-bold">
+                <Layers className="h-5 w-5" />
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Szczegóły Dostępności Zasobów
+                </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedCell(null)}
-                className="rounded-xl p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {cellDetailResources.length === 0 ? (
-              <div className="py-8 text-center text-slate-400 space-y-2">
-                <Package className="h-8 w-8 text-slate-300 mx-auto" />
-                <p className="text-xs">Brak aktywnych zgłoszeń dla tego przedziału czasowego.</p>
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Kategoria:</span>
+                <span className="font-bold text-indigo-700 uppercase">
+                  {selectedCell.type}
+                </span>
               </div>
-            ) : (
-              <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 pr-1">
-                {cellDetailResources.map((item) => (
-                  <div key={item.id} className="py-3 flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <Building className="h-4 w-4 text-indigo-600 shrink-0" />
-                        <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                          {item.organization?.name || 'Organizacja'}
-                        </span>
-                        {item.organization?.type && (
-                          <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                            {item.organization.type}
-                          </span>
-                        )}
-                      </div>
-                      {item.subcategory && (
-                        <div className="text-xs text-teal-700 font-medium">
-                          Specjalizacja: {item.subcategory}
-                        </div>
-                      )}
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1 font-mono">
-                        <Calendar className="h-3 w-3" />
-                        <span>{new Date(item.createdAt).toLocaleString('pl-PL')}</span>
-                      </div>
-                    </div>
+              {selectedCell.subcategory && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-medium">Podkategoria:</span>
+                  <span className="font-bold text-slate-900">
+                    {selectedCell.subcategory}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-medium">Horyzont czasowy:</span>
+                <span className="font-bold px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-800">
+                  {selectedCell.timeframe} (
+                  {
+                    TIMEFRAMES_CONFIG.find((t) => t.key === selectedCell.timeframe)
+                      ?.subLabel
+                  }
+                  )
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+                <span className="text-slate-500 font-medium">Łączna dostępna ilość:</span>
+                <span className="font-mono font-black text-base text-slate-900">
+                  {cellDetailResources
+                    .reduce((acc, r) => acc + r.quantity, 0)
+                    .toLocaleString('pl-PL')}{' '}
+                  {
+                    RESOURCE_TYPES_CONFIG.find((c) => c.key === selectedCell.type)?.unit
+                  }
+                </span>
+              </div>
+            </div>
 
-                    <div className="text-right font-mono font-bold text-sm text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 shrink-0">
-                      +{item.quantity.toLocaleString('pl-PL')}
+            {/* Lista jednostek zgłaszających */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                Zadeklarowane przez jednostki ({cellDetailResources.length}):
+              </span>
+
+              {cellDetailResources.length === 0 ? (
+                <div className="p-4 bg-slate-50 rounded-xl text-center text-xs text-slate-400">
+                  Brak zgłoszonych jednostek dla tej komórki w wybranym filtrze.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {cellDetailResources.map((res) => (
+                    <div
+                      key={res.id}
+                      className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs"
+                    >
+                      <div>
+                        <span className="font-bold text-slate-900 block">
+                          {res.organization?.name || 'Organizacja'}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          {res.subcategory || 'Standardowe'}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-mono font-bold text-sm text-emerald-700">
+                          {res.quantity.toLocaleString('pl-PL')}{' '}
+                          {
+                            RESOURCE_TYPES_CONFIG.find((c) => c.key === res.type)?.unit
+                          }
+                        </span>
+                        <span className="block text-[10px] text-slate-400">
+                          Gotowość: {res.timeframe}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="pt-2 flex justify-end">
               <button
                 type="button"
                 onClick={() => setSelectedCell(null)}
-                className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
               >
                 Zamknij
               </button>
@@ -1037,77 +1126,78 @@ export const DashboardResourcesPage: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 4. MODAL / DIALOG FORMULARZA "ZGŁOŚ ZASOBY"                              */}
+      {/* 7. MODAL ZGŁASZANIA NOWEGO ZASOBU                                         */}
       {/* ========================================================================= */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                  <Plus className="h-6 w-6 stroke-[2.5]" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Zgłoś Zasoby do Matrycy</h3>
-                  <p className="text-xs text-slate-500">
-                    Wprowadź szczegółowe informacje o dostępnym personelu lub sprzęcie
-                  </p>
-                </div>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 sm:p-7 space-y-5 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-indigo-600 font-bold">
+                <Plus className="h-5 w-5 stroke-[3]" />
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Zgłoś Nowy Zasób do Matrycy
+                </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-xl p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             <form onSubmit={handleCreateResource} className="space-y-4">
-              {/* Wybór typu zasobu */}
+              {/* Krok 1: Wybór Kategorii */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Główna kategoria zasobu
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  1. Wybierz Kategorię Zasobu:
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {RESOURCE_TYPES_CONFIG.map((t) => (
-                    <button
-                      key={t.key}
-                      type="button"
-                      onClick={() => {
-                        setFormType(t.key);
-                        setFormSubcategory(t.subcategoriesPreset[0]?.name || '');
-                      }}
-                      className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left text-xs font-bold transition ${
-                        formType === t.key
-                          ? 'bg-indigo-50 border-indigo-300 text-indigo-900 ring-1 ring-indigo-500'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      {t.icon}
-                      <span className="truncate">{t.label.split(' ')[0]}</span>
-                    </button>
-                  ))}
+                  {RESOURCE_TYPES_CONFIG.map((cfg) => {
+                    const isSelected = formType === cfg.key;
+                    return (
+                      <button
+                        key={cfg.key}
+                        type="button"
+                        onClick={() => {
+                          setFormType(cfg.key);
+                          setFormSubcategory(cfg.subcategoriesPreset[0]?.name || '');
+                        }}
+                        className={`flex items-center gap-2.5 p-3 rounded-2xl border text-left transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-400/40 text-indigo-950 font-bold'
+                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${cfg.iconBg} shrink-0`}>
+                          {cfg.icon}
+                        </div>
+                        <span className="text-xs">{cfg.shortName}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Wybór podkategorii */}
+              {/* Krok 2: Podkategoria */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Rodzaj / Specjalizacja
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  2. Wybierz Podkategorię / Nazwę:
                 </label>
                 <select
                   value={formSubcategory}
                   onChange={(e) => setFormSubcategory(e.target.value)}
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-slate-900 text-xs focus:bg-white focus:border-indigo-500 focus:outline-none transition mb-2 font-medium"
+                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none cursor-pointer"
                 >
-                  {RESOURCE_TYPES_CONFIG.find((t) => t.key === formType)?.subcategoriesPreset.map(
+                  {RESOURCE_TYPES_CONFIG.find((c) => c.key === formType)?.subcategoriesPreset.map(
                     (sub) => (
                       <option key={sub.name} value={sub.name}>
                         {sub.name}
                       </option>
                     )
                   )}
-                  <option value="__custom__">➕ Wpisz własną specjalizację...</option>
+                  <option value="__custom__">➕ Własna nazwa zasobu...</option>
                 </select>
 
                 {formSubcategory === '__custom__' && (
@@ -1116,16 +1206,17 @@ export const DashboardResourcesPage: React.FC = () => {
                     required
                     value={customSubcategory}
                     onChange={(e) => setCustomSubcategory(e.target.value)}
-                    placeholder="Wpisz nazwę specjalizacji lub sprzętu..."
-                    className="w-full rounded-xl bg-slate-50 border border-indigo-300 py-2 px-3 text-slate-900 placeholder-slate-400 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition"
+                    placeholder="Wprowadź precyzyjną nazwę zasobu..."
+                    className="w-full mt-2 rounded-xl bg-white border border-slate-300 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
                   />
                 )}
               </div>
 
-              {/* Ilość */}
+              {/* Krok 3: Ilość i Jednostka */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Ilość ({RESOURCE_TYPES_CONFIG.find((t) => t.key === formType)?.unit})
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  3. Ilość (Jednostka:{' '}
+                  <strong>{RESOURCE_TYPES_CONFIG.find((c) => c.key === formType)?.unit}</strong>):
                 </label>
                 <input
                   type="number"
@@ -1133,57 +1224,60 @@ export const DashboardResourcesPage: React.FC = () => {
                   required
                   value={formQuantity}
                   onChange={(e) => setFormQuantity(e.target.value)}
-                  placeholder="np. 15"
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-4 text-slate-900 placeholder-slate-400 text-sm focus:bg-white focus:border-indigo-500 focus:outline-none transition font-mono font-bold"
+                  placeholder="np. 50"
+                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-sm font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
                 />
               </div>
 
-              {/* Horyzont czasowy */}
+              {/* Krok 4: Horyzont Czasowy Gotowości */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Czas dostarczenia / gotowości
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  4. Horyzont czasowy gotowości do dyspozycji:
                 </label>
                 <div className="grid grid-cols-4 gap-2">
-                  {TIMEFRAMES_CONFIG.map((tf) => (
-                    <button
-                      key={tf.key}
-                      type="button"
-                      onClick={() => setFormTimeframe(tf.key)}
-                      className={`py-2 px-1.5 rounded-xl border text-center text-xs font-bold transition ${
-                        formTimeframe === tf.key
-                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div>{tf.label}</div>
-                      <div className="text-[9px] font-normal opacity-80">{tf.subLabel}</div>
-                    </button>
-                  ))}
+                  {TIMEFRAMES_CONFIG.map((tf) => {
+                    const isSelected = formTimeframe === tf.key;
+                    return (
+                      <button
+                        key={tf.key}
+                        type="button"
+                        onClick={() => setFormTimeframe(tf.key)}
+                        className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-xs'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="block text-xs font-black">{tf.label}</span>
+                        <span className="block text-[9px] opacity-80">{tf.subLabel}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
                 >
                   Anuluj
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !formQuantity}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-600/25 transition disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
-                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                      <span>Dodawanie...</span>
+                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span>Zgłaszanie...</span>
                     </>
                   ) : (
                     <>
-                      <Send className="h-3.5 w-3.5" />
-                      <span>Zgłoś do matrycy</span>
+                      <Plus className="h-4 w-4 stroke-[3]" />
+                      <span>Zgłoś zasób do matrycy</span>
                     </>
                   )}
                 </button>
