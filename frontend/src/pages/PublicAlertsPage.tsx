@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api';
-import { AlertsMap, AlertMapItem } from '../components/AlertsMap';
+import {
+  AlertsMap,
+  AlertMapItem,
+  MapDisplayMode,
+  getSeverityBadgeInfo,
+  getAlertSeverityScore,
+} from '../components/AlertsMap';
 import {
   MapPin,
   Building,
   AlertTriangle,
-  RefreshCw,
   Search,
   PhoneCall,
   User,
@@ -20,9 +25,15 @@ import {
   Columns,
   Compass,
   X,
+  ArrowUpDown,
 } from 'lucide-react';
 
 type ViewMode = 'split' | 'grid' | 'map';
+type PublicSortOption =
+  | 'date-desc'
+  | 'date-asc'
+  | 'severity-desc'
+  | 'severity-asc';
 
 export const PublicAlertsPage: React.FC = () => {
   const [alerts, setAlerts] = useState<AlertMapItem[]>([]);
@@ -33,6 +44,8 @@ export const PublicAlertsPage: React.FC = () => {
   const [selectedVoivodeship, setSelectedVoivodeship] = useState<string>('all');
   const [selectedCountyOrCity, setSelectedCountyOrCity] = useState<string>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [sortBy, setSortBy] = useState<PublicSortOption>('date-desc');
+  const [mapMode, setMapMode] = useState<MapDisplayMode>('severity');
 
   // Stan fokusu na konkretnym alercie na mapie
   const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
@@ -65,7 +78,7 @@ export const PublicAlertsPage: React.FC = () => {
       console.error('Błąd podczas pobierania publicznych alertów:', err);
       setError(
         err.response?.data?.message ||
-        'Nie udało się połączyć z serwerem komunikatów. Sprawdź połączenie sieciowe.'
+          'Nie udało się połączyć z serwerem komunikatów. Sprawdź połączenie sieciowe.'
       );
     } finally {
       setIsLoading(false);
@@ -87,7 +100,7 @@ export const PublicAlertsPage: React.FC = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'));
   }, [alerts]);
 
-  // Powiaty i miasta dostępne wyłącznie w wybranym województwie (bez jednostki autora)
+  // Powiaty i miasta dostępne wyłącznie w wybranym województwie
   const availableCountiesAndCities = useMemo(() => {
     if (selectedVoivodeship === 'all') return [];
 
@@ -111,11 +124,11 @@ export const PublicAlertsPage: React.FC = () => {
     setSelectedCountyOrCity('all'); // Automatyczny reset powiatu/miasta po zmianie województwa
   };
 
-  // Różnopoziomowe filtrowanie (Kategoria -> Województwo -> Powiat/Miasto -> Wyszukiwanie tekstowe)
+  // Różnopoziomowe filtrowanie i sortowanie (Krytyczność zdarzenia / Krytyczność żądań / Data)
   const filteredAlerts = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
-    return alerts.filter((alert) => {
+    const filtered = alerts.filter((alert) => {
       // 1. Filtr kategorii
       if (selectedCategory !== 'all' && alert.category !== selectedCategory) {
         return false;
@@ -129,11 +142,8 @@ export const PublicAlertsPage: React.FC = () => {
         return false;
       }
 
-      // 3. Filtr powiatu / miasta (dostępny i aktywny tylko gdy wybrano województwo)
-      if (
-        selectedVoivodeship !== 'all' &&
-        selectedCountyOrCity !== 'all'
-      ) {
+      // 3. Filtr powiatu / miasta
+      if (selectedVoivodeship !== 'all' && selectedCountyOrCity !== 'all') {
         const matchesCounty = alert.county?.toLowerCase() === selectedCountyOrCity.toLowerCase();
         const matchesLocation = alert.locationName?.toLowerCase() === selectedCountyOrCity.toLowerCase();
 
@@ -145,6 +155,7 @@ export const PublicAlertsPage: React.FC = () => {
       // 4. Wyszukiwanie pełnotekstowe
       if (!q) return true;
 
+      const matchTitle = alert.title ? alert.title.toLowerCase().includes(q) : false;
       const matchContent = alert.content.toLowerCase().includes(q);
       const matchCategory = alert.category.toLowerCase().includes(q);
       const matchLocation = alert.locationName?.toLowerCase().includes(q);
@@ -154,6 +165,7 @@ export const PublicAlertsPage: React.FC = () => {
       const matchOrg = alert.author?.organization?.name.toLowerCase().includes(q);
 
       return (
+        matchTitle ||
         matchContent ||
         matchCategory ||
         matchLocation ||
@@ -163,7 +175,38 @@ export const PublicAlertsPage: React.FC = () => {
         matchOrg
       );
     });
-  }, [alerts, searchQuery, selectedCategory, selectedVoivodeship, selectedCountyOrCity]);
+
+    // Sortowanie
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'severity-desc') {
+        const scoreA = getAlertSeverityScore(a.severity);
+        const scoreB = getAlertSeverityScore(b.severity);
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+
+      if (sortBy === 'severity-asc') {
+        const scoreA = getAlertSeverityScore(a.severity);
+        const scoreB = getAlertSeverityScore(b.severity);
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+
+      if (sortBy === 'date-asc') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+
+      // date-desc
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [
+    alerts,
+    searchQuery,
+    selectedCategory,
+    selectedVoivodeship,
+    selectedCountyOrCity,
+    sortBy,
+  ]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -212,21 +255,35 @@ export const PublicAlertsPage: React.FC = () => {
     };
   };
 
+  const handleNavigateToCard = (alert: AlertMapItem) => {
+    if (viewMode === 'map') {
+      setViewMode('split');
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`alert-card-${alert.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-indigo-400', 'transition-all');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-indigo-400');
+        }, 2500);
+      }
+    }, 100);
+  };
+
   return (
     <div className="space-y-6">
-      {/* 1. Header Hero Banner w stylu Metoxi */}
+      {/* 1. Header Hero Banner */}
       <section className="relative overflow-hidden rounded-3xl bg-white p-6 sm:p-8 border border-slate-200/80 shadow-xs">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="space-y-2.5 max-w-2xl">
-
-
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Ostrzeżenia i Komunikaty Ratunkowe
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
               Oficjalne meldunki operacyjne publikowane w czasie rzeczywistym przez samorządy,
-              straż pożarną i służby ratownicze. Wyszukuj po województwach, powiatach i miastach.
+              straż pożarną i służby ratownicze. Przeglądaj na mapie według krytyczności lub kategorii zdarzeń.
             </p>
           </div>
 
@@ -254,7 +311,7 @@ export const PublicAlertsPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 2. Pasek Różnopoziomowego Wyszukiwania i Filtrów */}
+      {/* 2. Pasek Wyszukiwania, Filtrów i Sortowania */}
       <section className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
           {/* Pole wyszukiwania */}
@@ -264,7 +321,7 @@ export const PublicAlertsPage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Wpisz województwo, powiat, gminę, miasto lub treść (np. dolnośląskie, Warszawa, Kłodzko)..."
+              placeholder="Wpisz województwo, powiat, gminę, miasto lub treść..."
               className="w-full rounded-xl bg-slate-50 border border-slate-200/80 py-2.5 pl-10 pr-10 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition"
             />
             {searchQuery && (
@@ -293,7 +350,7 @@ export const PublicAlertsPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Filtr Powiatu i Miasta (aktywny tylko po wyborze województwa) */}
+          {/* Filtr Powiatu i Miasta */}
           <div className="md:col-span-3">
             <select
               value={selectedCountyOrCity}
@@ -323,16 +380,17 @@ export const PublicAlertsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Pasek przełączania widoku i chipy kategorii */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-100">
+        {/* Pasek przełączania widoku, chipy kategorii i sortowanie */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-3 border-t border-slate-100">
           {/* Przełącznik widoku */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode('split')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'split'
-                ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-                }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                viewMode === 'split'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               <Columns className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Podzielony</span>
@@ -340,10 +398,11 @@ export const PublicAlertsPage: React.FC = () => {
 
             <button
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'map'
-                ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-                }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                viewMode === 'map'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               <MapIcon className="h-3.5 w-3.5" />
               <span>Mapa</span>
@@ -351,10 +410,11 @@ export const PublicAlertsPage: React.FC = () => {
 
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'grid'
-                ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-                }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                viewMode === 'grid'
+                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               <span>Karty</span>
@@ -365,10 +425,11 @@ export const PublicAlertsPage: React.FC = () => {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`rounded-xl px-3 py-1.5 font-bold transition shrink-0 ${selectedCategory === 'all'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                }`}
+              className={`rounded-xl px-3 py-1.5 font-bold transition shrink-0 ${
+                selectedCategory === 'all'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+              }`}
             >
               Wszystkie ({alerts.length})
             </button>
@@ -376,24 +437,34 @@ export const PublicAlertsPage: React.FC = () => {
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`rounded-xl px-2.5 py-1.5 font-semibold transition shrink-0 ${selectedCategory === cat
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                  }`}
+                className={`rounded-xl px-2.5 py-1.5 font-semibold transition shrink-0 ${
+                  selectedCategory === cat
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                }`}
               >
                 {cat.split(' ')[0]}
               </button>
             ))}
           </div>
 
-          <button
-            onClick={fetchAlerts}
-            disabled={isLoading}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-semibold transition shrink-0"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Odśwież</span>
-          </button>
+          {/* Sortowanie i odświeżanie */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5 text-xs">
+              <ArrowUpDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+              <span className="text-slate-500 hidden sm:inline">Sortuj:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as PublicSortOption)}
+                className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer"
+              >
+                <option value="date-desc">Najnowsze</option>
+                <option value="date-asc">Najstarsze</option>
+                <option value="severity-desc">🚨 Krytyczność (najwyższa)</option>
+                <option value="severity-asc">🟢 Krytyczność (najniższa)</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {searchQuery && (
@@ -428,13 +499,13 @@ export const PublicAlertsPage: React.FC = () => {
               ref={mapSectionRef}
               className="rounded-3xl bg-white p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3 scroll-mt-6"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                   <MapPin className="h-4 w-4 text-red-500" />
                   <span>Mapa Ostrzeżeń Kryzysowych ({filteredAlerts.length})</span>
                 </div>
                 <span className="text-xs text-slate-400 hidden sm:inline">
-                  Kliknij punkt na mapie lub „Pokaż na mapie” na karcie, aby zobaczyć szczegóły
+                  Przełączaj tryb mapy (Kategorie / Krytyczność zdarzenia)
                 </span>
               </div>
 
@@ -443,6 +514,11 @@ export const PublicAlertsPage: React.FC = () => {
                 height={viewMode === 'map' ? '600px' : '440px'}
                 focusedAlertId={focusedAlertId}
                 focusKey={focusKey}
+                mode={mapMode}
+                onModeChange={setMapMode}
+                availableModes={['category', 'severity']}
+                showNeededResourcesInPopup={false}
+                onNavigateToCard={handleNavigateToCard}
               />
             </section>
           )}
@@ -454,9 +530,22 @@ export const PublicAlertsPage: React.FC = () => {
                 <span className="text-sm font-bold text-slate-900">
                   Lista aktywnych komunikatów ({filteredAlerts.length})
                 </span>
+                <span className="text-xs text-slate-500">
+                  Sortowanie: <strong className="text-slate-700">{
+                    sortBy === 'date-desc' ? 'Najnowsze' :
+                    sortBy === 'date-asc' ? 'Najstarsze' :
+                    sortBy === 'severity-desc' ? 'Krytyczność zdarzenia (najwyższa)' :
+                    'Krytyczność zdarzenia (najniższa)'
+                  }</strong>
+                </span>
               </div>
 
-              {filteredAlerts.length === 0 ? (
+              {isLoading ? (
+                <div className="py-16 text-center text-slate-400">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent mb-2"></div>
+                  <p className="text-xs">Ładowanie komunikatów...</p>
+                </div>
+              ) : filteredAlerts.length === 0 ? (
                 <div className="rounded-3xl bg-white p-12 text-center border border-slate-200/80 shadow-xs max-w-md mx-auto space-y-4">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100">
                     <ShieldCheck className="h-7 w-7" />
@@ -474,6 +563,7 @@ export const PublicAlertsPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {filteredAlerts.map((alert) => {
                     const categoryBadge = getCategoryBadge(alert.category);
+                    const severityInfo = getSeverityBadgeInfo(alert.severity);
                     const orgName = alert.author?.organization?.name || 'Służby Ratunkowe';
                     const orgType = alert.author?.organization?.type;
                     const authorName = alert.author
@@ -483,18 +573,29 @@ export const PublicAlertsPage: React.FC = () => {
                     return (
                       <article
                         key={alert.id}
+                        id={`alert-card-${alert.id}`}
                         className="group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition duration-200"
                       >
-                        {/* Górna belka karty: Kategoria & Rozbudowana Lokalizacja */}
+                        {/* Górna belka karty: Badge Krytyczności, Kategoria & Rozbudowana Lokalizacja */}
                         <div className="space-y-3.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            {/* Kategoria */}
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
-                            >
-                              {categoryBadge.icon}
-                              <span>{alert.category}</span>
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {/* Badge Krytyczności Zdarzenia */}
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                              >
+                                <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                                <span>{severityInfo.label}</span>
+                              </span>
+
+                              {/* Kategoria */}
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
+                              >
+                                {categoryBadge.icon}
+                                <span>{alert.category}</span>
+                              </span>
+                            </div>
 
                             {/* Rozbudowany badge lokalizacji (Miasto, Powiat, Województwo) */}
                             <button
@@ -521,10 +622,17 @@ export const PublicAlertsPage: React.FC = () => {
                             </button>
                           </div>
 
-                          {/* Treść alertu */}
-                          <p className="text-sm sm:text-base text-slate-800 font-semibold leading-relaxed">
-                            {alert.content}
-                          </p>
+                          {/* Tytuł i Treść alertu */}
+                          <div className="space-y-1.5">
+                            {alert.title && (
+                              <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug tracking-tight">
+                                {alert.title}
+                              </h3>
+                            )}
+                            <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                              {alert.content}
+                            </p>
+                          </div>
                         </div>
 
                         {/* Dolna belka karty: Organizacja, Przycisk przejścia do mapy & Czas */}

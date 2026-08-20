@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Alert, User, Organization, Municipality, Resource } from '../models';
 import { AuthenticatedRequest } from '../middleware/protect';
+import { recordAuditLog } from '../services/auditService';
 
 /**
  * @desc    Pobiera wszystkie aktywne alerty (publiczny dostęp)
@@ -107,17 +108,20 @@ export const getMyMunicipalityAlerts = async (
   res: Response
 ): Promise<void> => {
   try {
+    const scope = (req.query.scope as string) || 'all';
     let municipalityId = req.query.municipalityId as string;
 
-    if (!municipalityId && req.user?.organizationId) {
-      const userOrg = await Organization.findByPk(req.user.organizationId);
-      if (userOrg) {
-        municipalityId = userOrg.municipalityId;
+    if (scope !== 'all' && municipalityId !== 'all') {
+      if (!municipalityId && req.user?.organizationId) {
+        const userOrg = await Organization.findByPk(req.user.organizationId);
+        if (userOrg) {
+          municipalityId = userOrg.municipalityId;
+        }
       }
     }
 
     const whereClause: any = {};
-    if (municipalityId) {
+    if (scope !== 'all' && municipalityId && municipalityId !== 'all') {
       whereClause.municipalityId = municipalityId;
     }
 
@@ -171,8 +175,10 @@ export const createAlert = async (
 ): Promise<void> => {
   try {
     const {
+      title,
       content,
       category,
+      severity,
       municipality,
       municipalityId,
       locationName,
@@ -237,9 +243,14 @@ export const createAlert = async (
         allocations: Array.isArray(nr.allocations) ? nr.allocations : [],
       }));
 
+    const validSeverities = ['krytyczny', 'wysoki', 'średni', 'niski'];
+    const alertSeverity = severity && validSeverities.includes(severity) ? severity : 'wysoki';
+
     const alert = await Alert.create({
+      title: title ? title.trim() : null,
       content,
       category,
+      severity: alertSeverity,
       municipalityId: targetMunicipalityId,
       authorId: req.user!.id,
       isActive: true,
@@ -272,6 +283,31 @@ export const createAlert = async (
           attributes: ['id', 'name'],
         },
       ],
+    });
+
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'alert_created',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: req.user,
+      organizationId: userOrg?.id,
+      organizationName: userOrg?.name,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Utworzenie i publikacja nowego komunikatu: "${alert.title || alert.category}" (${alert.locationName || 'Brak lokalizacji'})`,
+      newState: {
+        title: alert.title,
+        content: alert.content,
+        category: alert.category,
+        severity: alert.severity,
+        locationName: alert.locationName,
+        county: alert.county,
+        voivodeship: alert.voivodeship,
+        lat: alert.lat,
+        lng: alert.lng,
+        neededResources: alert.neededResources,
+      },
     });
 
     res.status(201).json({
@@ -315,8 +351,9 @@ export const deactivateAlert = async (
 
     let userMunicipalityId: string | null = null;
     let userOrgName: string | undefined = undefined;
+    let userOrg: Organization | null = null;
     if (user.organizationId) {
-      const userOrg = await Organization.findByPk(user.organizationId);
+      userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
         userOrgName = userOrg.name;
@@ -369,6 +406,21 @@ export const deactivateAlert = async (
       ],
     });
 
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'alert_deactivated',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: req.user,
+      organizationId: userOrg?.id,
+      organizationName: userOrgName,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Odwołanie komunikatu kryzysowego (przeniesienie do archiwum): "${alert.title || alert.category}"`,
+      previousState: { isActive: true },
+      newState: { isActive: false },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Alert został pomyślnie dezaktywowany.',
@@ -410,8 +462,9 @@ export const reactivateAlert = async (
 
     let userMunicipalityId: string | null = null;
     let userOrgName: string | undefined = undefined;
+    let userOrg: Organization | null = null;
     if (user.organizationId) {
-      const userOrg = await Organization.findByPk(user.organizationId);
+      userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
         userOrgName = userOrg.name;
@@ -464,6 +517,21 @@ export const reactivateAlert = async (
       ],
     });
 
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'alert_reactivated',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: req.user,
+      organizationId: userOrg?.id,
+      organizationName: userOrgName,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Wznowienie i ponowna publikacja komunikatu: "${alert.title || alert.category}"`,
+      previousState: { isActive: false },
+      newState: { isActive: true },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Alert został pomyślnie reaktywowany i ponownie opublikowany.',
@@ -489,7 +557,7 @@ export const updateAlert = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { content, category, locationName, county, voivodeship, lat, lng, isActive } = req.body;
+    const { title, content, category, severity, locationName, county, voivodeship, lat, lng, isActive } = req.body;
 
     const alert = await Alert.findByPk(id);
     if (!alert) {
@@ -506,8 +574,9 @@ export const updateAlert = async (
 
     let userMunicipalityId: string | null = null;
     let userOrgName: string | undefined = undefined;
+    let userOrg: Organization | null = null;
     if (user.organizationId) {
-      const userOrg = await Organization.findByPk(user.organizationId);
+      userOrg = await Organization.findByPk(user.organizationId);
       if (userOrg) {
         userMunicipalityId = userOrg.municipalityId;
         userOrgName = userOrg.name;
@@ -524,8 +593,26 @@ export const updateAlert = async (
       return;
     }
 
+    const previousState = {
+      title: alert.title,
+      content: alert.content,
+      category: alert.category,
+      severity: alert.severity,
+      locationName: alert.locationName,
+      county: alert.county,
+      voivodeship: alert.voivodeship,
+      lat: alert.lat,
+      lng: alert.lng,
+      isActive: alert.isActive,
+      neededResources: alert.neededResources ? JSON.parse(JSON.stringify(alert.neededResources)) : [],
+    };
+
+    if (title !== undefined) alert.title = title ? title.trim() : null;
     if (content !== undefined) alert.content = content.trim();
     if (category !== undefined) alert.category = category;
+    if (severity !== undefined && ['krytyczny', 'wysoki', 'średni', 'niski'].includes(severity)) {
+      alert.severity = severity as any;
+    }
     if (locationName !== undefined) alert.locationName = locationName || null;
     if (county !== undefined) alert.county = county || null;
     if (voivodeship !== undefined) alert.voivodeship = voivodeship || null;
@@ -571,6 +658,33 @@ export const updateAlert = async (
           attributes: ['id', 'name'],
         },
       ],
+    });
+
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'alert_updated',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: req.user,
+      organizationId: userOrg?.id,
+      organizationName: userOrgName,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Aktualizacja parametrów lub treści komunikatu "${alert.title || alert.category}"`,
+      previousState,
+      newState: {
+        title: alert.title,
+        content: alert.content,
+        category: alert.category,
+        severity: alert.severity,
+        locationName: alert.locationName,
+        county: alert.county,
+        voivodeship: alert.voivodeship,
+        lat: alert.lat,
+        lng: alert.lng,
+        isActive: alert.isActive,
+        neededResources: alert.neededResources,
+      },
     });
 
     res.status(200).json({
@@ -707,6 +821,19 @@ export const allocateResourceToAlert = async (
     const targetReq = { ...neededResources[targetReqIndex] };
     const allocQuantity = Number(quantity);
 
+    const remainingNeeded = Math.max(
+      0,
+      targetReq.quantityNeeded - (targetReq.quantityAllocated || 0)
+    );
+
+    if (allocQuantity > remainingNeeded) {
+      res.status(400).json({
+        success: false,
+        message: `Nie można przydzielić więcej zasobów niż wynosi brakująca ilość. Wymagane jeszcze: ${remainingNeeded}, próbowano przekazać: ${allocQuantity}.`,
+      });
+      return;
+    }
+
     // Jeśli wskazano konkretny zasób z magazynu organizacji lub wyszukujemy zasób
     let matchedResource: Resource | null = null;
     if (resourceId) {
@@ -715,6 +842,14 @@ export const allocateResourceToAlert = async (
         res.status(403).json({
           success: false,
           message: 'Wskazany zasób nie należy do Twojej organizacji.',
+        });
+        return;
+      }
+
+      if (matchedResource.type.toLowerCase() !== targetReq.resourceType.toLowerCase()) {
+        res.status(400).json({
+          success: false,
+          message: `Kategoria przydzielanego zasobu (${matchedResource.type}) nie zgadza się z kategorią zapotrzebowania (${targetReq.resourceType}).`,
         });
         return;
       }
@@ -731,7 +866,7 @@ export const allocateResourceToAlert = async (
       matchedResource.quantity -= allocQuantity;
       await matchedResource.save();
     } else {
-      // Wyszukaj aktywny zasób organizacji
+      // Wyszukaj aktywny zasób organizacji o tym samym typie
       const existingOrgResource = await Resource.findOne({
         where: {
           organizationId: userOrg.id,
@@ -744,6 +879,12 @@ export const allocateResourceToAlert = async (
         existingOrgResource.quantity -= allocQuantity;
         await existingOrgResource.save();
         matchedResource = existingOrgResource;
+      } else {
+        res.status(400).json({
+          success: false,
+          message: `Brak wystarczających zasobów w kategorii "${targetReq.resourceType}" w magazynie Twojej organizacji.`,
+        });
+        return;
       }
     }
 
@@ -801,6 +942,35 @@ export const allocateResourceToAlert = async (
           attributes: ['id', 'name'],
         },
       ],
+    });
+
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'resource_allocated',
+      entityType: 'resource',
+      entityId: targetReq.id,
+      user: req.user,
+      organizationId: userOrg.id,
+      organizationName: userOrg.name,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Dyspozycja zasobów: przekazano ${allocQuantity} ${targetReq.unit || 'szt.'} na zapotrzebowanie "${targetReq.name}" (jednostka: ${userOrg.name})`,
+      previousState: {
+        neededResourceId: targetReq.id,
+        resourceName: targetReq.name,
+        quantityAllocatedBefore: (targetReq.quantityAllocated || 0) - allocQuantity,
+        warehouseResourceId: matchedResource?.id,
+        warehouseQuantityBefore: matchedResource ? matchedResource.quantity + allocQuantity : undefined,
+      },
+      newState: {
+        neededResourceId: targetReq.id,
+        resourceName: targetReq.name,
+        quantityAllocatedAfter: targetReq.quantityAllocated,
+        allocatedAmount: allocQuantity,
+        warehouseResourceId: matchedResource?.id,
+        warehouseQuantityAfter: matchedResource ? matchedResource.quantity : undefined,
+        note: note ? String(note).trim() : undefined,
+      },
     });
 
     res.status(200).json({
@@ -952,6 +1122,25 @@ export const createAlertPost = async (
       ],
     });
 
+    // Rejestracja w Audit Log
+    recordAuditLog({
+      action: 'post_created',
+      entityType: 'post',
+      entityId: newPost.id,
+      user: req.user,
+      organizationId: user.organizationId,
+      organizationName: userOrgName,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.locationName || 'Komunikat kryzysowy',
+      details: `Opublikowanie nowego wpisu na forum alertu: "${newPost.title}"`,
+      newState: {
+        postId: newPost.id,
+        title: newPost.title,
+        content: newPost.content,
+        postType: newPost.postType,
+      },
+    });
+
     res.status(201).json({
       success: true,
       message: 'Nowy wpis został pomyślnie opublikowany.',
@@ -1068,6 +1257,76 @@ export const addPostChatMessage = async (
     res.status(500).json({
       success: false,
       message: 'Wystąpił błąd podczas wysyłania wiadomości.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Całkowite usunięcie alertu (Tylko dla Administratora) z zachowaniem pełnej kopii w logach
+ * @route   DELETE /api/alerts/:id
+ * @access  Private (adminOnly)
+ */
+export const deleteAlert = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        message: 'Brak autoryzacji.',
+      });
+      return;
+    }
+
+    if (user.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Brak uprawnień. Tylko administrator może trwale usunąć alert.',
+      });
+      return;
+    }
+
+    const alert = await Alert.findByPk(id);
+    if (!alert) {
+      res.status(404).json({
+        success: false,
+        message: 'Alert nie został odnaleziony.',
+      });
+      return;
+    }
+
+    // Pełna kopia stanu alertu do zachowania w dzienniku audytu
+    const alertSnapshot = alert.toJSON();
+
+    await recordAuditLog({
+      action: 'alert_deleted',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: user,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.category,
+      details: `Całkowite usunięcie alertu: "${alert.title || alert.category}" (ID: ${alert.id}) przez administratora ${user.firstName} ${user.lastName}`,
+      previousState: alertSnapshot,
+      newState: null,
+    });
+
+    await alert.destroy();
+
+    res.status(200).json({
+      success: true,
+      message: 'Alert został całkowicie usunięty z systemu. Kopia danych została zachowana w logach audytowych i może zostać przywrócona przez administratora.',
+      data: { id },
+    });
+  } catch (error: any) {
+    console.error('Błąd trwałego usuwania alertu:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas usuwania alertu.',
       error: error.message,
     });
   }

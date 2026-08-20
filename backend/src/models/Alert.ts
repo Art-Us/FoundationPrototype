@@ -58,8 +58,10 @@ export interface AlertPostItem {
 
 export interface AlertAttributes {
   id: string;
+  title?: string | null;
   content: string;
   category: string;
+  severity?: 'krytyczny' | 'wysoki' | 'średni' | 'niski';
   isActive: boolean;
   authorId: string;
   municipalityId: string;
@@ -79,6 +81,8 @@ export interface AlertCreationAttributes
   extends Optional<
     AlertAttributes,
     | 'id'
+    | 'title'
+    | 'severity'
     | 'isActive'
     | 'locationName'
     | 'county'
@@ -97,8 +101,10 @@ export class Alert
   implements AlertAttributes
 {
   declare id: string;
+  declare title: string | null;
   declare content: string;
   declare category: string;
+  declare severity: 'krytyczny' | 'wysoki' | 'średni' | 'niski';
   declare isActive: boolean;
   declare authorId: string;
   declare municipalityId: string;
@@ -121,6 +127,10 @@ Alert.init(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
+    title: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     content: {
       type: DataTypes.TEXT,
       allowNull: false,
@@ -134,6 +144,11 @@ Alert.init(
       validate: {
         notEmpty: { msg: 'Kategoria komunikatu jest wymagana' },
       },
+    },
+    severity: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'wysoki',
     },
     isActive: {
       type: DataTypes.BOOLEAN,

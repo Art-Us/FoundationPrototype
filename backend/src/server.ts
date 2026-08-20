@@ -13,8 +13,8 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log('✅ Połączono z bazą danych SQLite');
 
-    // 2. Synchronizacja tabel
-    await sequelize.sync({ alter: true });
+    // 2. Synchronizacja tabel (bezpieczne CREATE TABLE IF NOT EXISTS)
+    await sequelize.sync();
     console.log('✅ Zsynchronizowano tabele bazy danych SQLite');
 
     // 3. Automatyczne zasilenie danymi testowymi, jeśli baza jest pusta

@@ -13,6 +13,8 @@ import {
   updateOrganization,
   deleteOrganization,
   getAllMunicipalities,
+  getAuditLogs,
+  revertAuditLog,
 } from '../controllers/adminController';
 import { protect } from '../middleware/protect';
 import { adminOnly } from '../middleware/adminOnly';
@@ -43,4 +45,9 @@ router.delete('/organizations/:id', deleteOrganization);
 // 4. Pomocnicze: lista gmin
 router.get('/municipalities', getAllMunicipalities);
 
+// 5. Dziennik Zdarzeń (Audit & Activity Logs) i Odwoływanie Zmian (Rollback)
+router.get('/logs', getAuditLogs);
+router.post('/logs/:id/revert', revertAuditLog);
+
 export default router;
+

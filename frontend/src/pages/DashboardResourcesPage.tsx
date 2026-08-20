@@ -3,7 +3,6 @@ import api from '../services/api';
 import {
   Database,
   Plus,
-  RefreshCw,
   Users,
   Droplets,
   Wrench,
@@ -532,15 +531,6 @@ export const DashboardResourcesPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={fetchResources}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Odśwież</span>
-          </button>
-
           <button
             onClick={() => {
               setFormSubcategory(RESOURCE_TYPES_CONFIG[0].subcategoriesPreset[0].name);

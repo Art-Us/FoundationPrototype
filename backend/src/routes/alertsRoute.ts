@@ -12,8 +12,10 @@ import {
   allocateResourceToAlert,
   createAlertPost,
   addPostChatMessage,
+  deleteAlert,
 } from '../controllers/alertController';
 import { protect } from '../middleware/protect';
+import { adminOnly } from '../middleware/adminOnly';
 
 const router = Router();
 
@@ -53,5 +55,8 @@ router.patch('/:id/deactivate', protect, deactivateAlert);
 
 // PATCH /api/alerts/:id/reactivate - Reaktywuje alert (wymaga protect)
 router.patch('/:id/reactivate', protect, reactivateAlert);
+
+// DELETE /api/alerts/:id - Całkowicie usuwa alert z zachowaniem kopii w logach audytowych (Tylko Admin)
+router.delete('/:id', protect, adminOnly, deleteAlert);
 
 export default router;

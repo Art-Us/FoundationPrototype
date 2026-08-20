@@ -2,12 +2,19 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { AlertsMap, AlertMapItem, NeededResourceItem } from '../components/AlertsMap';
+import {
+  AlertsMap,
+  AlertMapItem,
+  NeededResourceItem,
+  MapDisplayMode,
+  getSeverityBadgeInfo,
+  getAlertSeverityScore,
+  getAlertResourceUrgencyScore,
+} from '../components/AlertsMap';
 import {
   MapPin,
   Building,
   AlertTriangle,
-  RefreshCw,
   Search,
   User,
   ShieldCheck,
@@ -30,10 +37,17 @@ import {
   Pencil,
   Trash2,
   MessageSquare,
+  ArrowUpDown,
 } from 'lucide-react';
 
 type ViewMode = 'split' | 'grid' | 'map';
 type ResourceFilter = 'all' | 'needs_help' | 'fulfilled' | 'with_demands';
+type OperationalSortOption =
+  | 'date-desc'
+  | 'date-asc'
+  | 'severity-desc'
+  | 'severity-asc'
+  | 'demands-critical';
 
 interface OrgResourceItem {
   id: string;
@@ -57,13 +71,16 @@ export const OperationalAlertsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtry
+  // Filtry i Sortowanie
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedVoivodeship, setSelectedVoivodeship] = useState<string>('all');
   const [selectedCountyOrCity, setSelectedCountyOrCity] = useState<string>('all');
   const [resourceFilter, setResourceFilter] = useState<ResourceFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [sortBy, setSortBy] = useState<OperationalSortOption>('date-desc');
+  const [mapMode, setMapMode] = useState<MapDisplayMode>('severity');
+  const [onlyMyOrgCanHelp, setOnlyMyOrgCanHelp] = useState<boolean>(false);
 
   // Skupienie na mapie
   const [focusedAlertId, setFocusedAlertId] = useState<string | null>(null);
@@ -78,15 +95,7 @@ export const OperationalAlertsPage: React.FC = () => {
   const [allocationNote, setAllocationNote] = useState<string>('');
   const [isSubmittingAlloc, setIsSubmittingAlloc] = useState(false);
   const [expandedAllocAlerts, setExpandedAllocAlerts] = useState<Record<string, boolean>>({});
-
-  // Modal dodawania nowego zapotrzebowania do alertu
-  const [addingDemandAlert, setAddingDemandAlert] = useState<AlertMapItem | null>(null);
-  const [newDemandType, setNewDemandType] = useState<'woda' | 'sprzet' | 'ludzie' | 'inne'>('woda');
-  const [newDemandName, setNewDemandName] = useState('Woda butelkowana 1.5L');
-  const [newDemandQuantity, setNewDemandQuantity] = useState<number>(100);
-  const [newDemandUnit, setNewDemandUnit] = useState('szt.');
-  const [newDemandUrgency, setNewDemandUrgency] = useState<'niski' | 'średni' | 'wysoki' | 'krytyczny'>('wysoki');
-  const [isSubmittingNewDemand, setIsSubmittingNewDemand] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Toast
   const [toast, setToast] = useState<{
@@ -149,25 +158,92 @@ export const OperationalAlertsPage: React.FC = () => {
     setExpandedAllocAlerts((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Otwarcie modalu alokacji
+  // Otwarcie modalu alokacji z dopasowaniem kategorii i automatycznym wyliczeniem ilości
   const openAllocationModal = (alert: AlertMapItem, needed: NeededResourceItem) => {
     setAllocatingAlert(alert);
     setAllocatingResource(needed);
-    const remaining = Math.max(1, needed.quantityNeeded - (needed.quantityAllocated || 0));
-    setAllocateQuantity(remaining);
     setAllocationNote('');
 
-    // Domyślny wybór zasobu z organizacji pasującego typem
-    const matched = orgResources.find(
+    const remainingNeeded = Math.max(
+      1,
+      needed.quantityNeeded - (needed.quantityAllocated || 0)
+    );
+
+    // Filtrujemy zasoby organizacji tylko do tej samej kategorii co zapotrzebowanie
+    const matchingResources = orgResources.filter(
       (r) => r.type.toLowerCase() === needed.resourceType.toLowerCase() && r.quantity > 0
     );
-    setSelectedOrgResourceId(matched ? matched.id : orgResources[0]?.id || '');
+
+    if (matchingResources.length > 0) {
+      const selected = matchingResources[0];
+      setSelectedOrgResourceId(selected.id);
+      // Jeśli posiadamy więcej niż jest wymagane -> ustawia dokładnie remainingNeeded
+      // Jeśli posiadamy mniej -> ustawia selected.quantity (maksimum ile posiadamy)
+      const autoQty = Math.min(remainingNeeded, selected.quantity);
+      setAllocateQuantity(autoQty);
+    } else {
+      setSelectedOrgResourceId('');
+      setAllocateQuantity(0);
+    }
+  };
+
+  // Zmiana wybranego zasobu w modalu alokacji
+  const handleSelectOrgResource = (resourceId: string) => {
+    setSelectedOrgResourceId(resourceId);
+    if (!allocatingResource) return;
+
+    const res = orgResources.find((r) => r.id === resourceId);
+    const remainingNeeded = Math.max(
+      1,
+      allocatingResource.quantityNeeded - (allocatingResource.quantityAllocated || 0)
+    );
+
+    if (res && res.quantity > 0) {
+      const autoQty = Math.min(remainingNeeded, res.quantity);
+      setAllocateQuantity(autoQty);
+    } else {
+      setAllocateQuantity(0);
+    }
   };
 
   // Zatwierdzenie przydziału zasobów
   const handleSubmitAllocation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!allocatingAlert || !allocatingResource || allocateQuantity <= 0) return;
+    if (!allocatingAlert || !allocatingResource) return;
+
+    const remainingNeeded = Math.max(
+      0,
+      allocatingResource.quantityNeeded - (allocatingResource.quantityAllocated || 0)
+    );
+    const selectedRes = orgResources.find((r) => r.id === selectedOrgResourceId);
+
+    if (!selectedRes) {
+      showToast('Wybierz zasób z magazynu Twojej jednostki.', 'error');
+      return;
+    }
+
+    if (selectedRes.type.toLowerCase() !== allocatingResource.resourceType.toLowerCase()) {
+      showToast(
+        `Kategoria zasobu (${selectedRes.type}) nie zgadza się z kategorią zapotrzebowania (${allocatingResource.resourceType}).`,
+        'error'
+      );
+      return;
+    }
+
+    const maxAllowed = Math.min(remainingNeeded, selectedRes.quantity);
+
+    if (allocateQuantity <= 0) {
+      showToast('Podaj dodatnią ilość zasobów do przekazania.', 'error');
+      return;
+    }
+
+    if (allocateQuantity > maxAllowed) {
+      showToast(
+        `Nie można przydzielić więcej niż dopuszczalne ${maxAllowed} ${allocatingResource.unit} (wymagane: ${remainingNeeded}, dostępne w magazynie: ${selectedRes.quantity}).`,
+        'error'
+      );
+      return;
+    }
 
     setIsSubmittingAlloc(true);
     try {
@@ -206,59 +282,31 @@ export const OperationalAlertsPage: React.FC = () => {
     }
   };
 
-  // Otwarcie modalu zgłaszania nowego zapotrzebowania
-  const openAddDemandModal = (alert: AlertMapItem) => {
-    setAddingDemandAlert(alert);
-    setNewDemandType('woda');
-    setNewDemandName('Woda butelkowana 1.5L');
-    setNewDemandQuantity(100);
-    setNewDemandUnit('szt.');
-    setNewDemandUrgency('wysoki');
-  };
+  // Trwałe usunięcie alertu (Tylko Administrator)
+  const handleDeleteAlert = async (alert: AlertMapItem) => {
+    if (
+      !window.confirm(
+        `Czy na pewno chcesz CAŁKOWICIE USUNĄĆ ten alert?\n\n"${alert.title || alert.category}"\n\nPełna kopia danych zostanie zachowana w logach systemowych administratora, skąd będzie można cofnąć tę operację (Rollback).`
+      )
+    ) {
+      return;
+    }
 
-  // Zatwierdzenie nowego zapotrzebowania
-  const handleSubmitNewDemand = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!addingDemandAlert || !newDemandName.trim() || newDemandQuantity <= 0) return;
-
-    setIsSubmittingNewDemand(true);
+    setActionLoadingId(alert.id);
     try {
-      const currentNeeded = Array.isArray(addingDemandAlert.neededResources)
-        ? [...addingDemandAlert.neededResources]
-        : [];
-
-      const newDemandItem: NeededResourceItem = {
-        id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        resourceType: newDemandType,
-        name: newDemandName.trim(),
-        quantityNeeded: newDemandQuantity,
-        quantityAllocated: 0,
-        unit: newDemandUnit.trim() || 'szt.',
-        urgency: newDemandUrgency,
-        allocations: [],
-      };
-
-      const updatedNeeded = [...currentNeeded, newDemandItem];
-
-      const res = await api.put(`/alerts/${addingDemandAlert.id}`, {
-        neededResources: updatedNeeded,
-      });
-
-      if (res.data.success && res.data.data) {
-        setAlerts((prev) =>
-          prev.map((a) => (a.id === addingDemandAlert.id ? res.data.data : a))
-        );
-        showToast('Nowe zapotrzebowanie zostało pomyślnie dodane do alertu!');
-        setAddingDemandAlert(null);
+      const res = await api.delete(`/alerts/${alert.id}`);
+      if (res.data.success) {
+        showToast(res.data.message || 'Alert został trwale usunięty z systemu.');
+        setAlerts((prev) => prev.filter((a) => a.id !== alert.id));
       }
-    } catch (err: any) {
-      console.error('Błąd dodawania zapotrzebowania:', err);
+    } catch (error: any) {
+      console.error('Błąd trwałego usuwania alertu:', error);
       showToast(
-        err.response?.data?.message || 'Nie udało się dodać zapotrzebowania.',
+        error.response?.data?.message || 'Nie udało się usunąć alertu.',
         'error'
       );
     } finally {
-      setIsSubmittingNewDemand(false);
+      setActionLoadingId(null);
     }
   };
 
@@ -374,9 +422,43 @@ export const OperationalAlertsPage: React.FC = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'pl'));
   }, [alerts, selectedVoivodeship]);
 
+  // Funkcja sprawdzająca, które niezaspokojone zapotrzebowania alertu może pokryć nasza jednostka
+  const getMatchingOrgResourcesForAlert = (alert: AlertMapItem): NeededResourceItem[] => {
+    const needed = Array.isArray(alert.neededResources) ? alert.neededResources : [];
+    if (needed.length === 0 || orgResources.length === 0) return [];
+
+    return needed.filter((nr) => {
+      const remaining = nr.quantityNeeded - (nr.quantityAllocated || 0);
+      if (remaining <= 0) return false;
+
+      return orgResources.some(
+        (r) =>
+          r.quantity > 0 &&
+          (r.type.toLowerCase() === nr.resourceType.toLowerCase() ||
+            (r.subcategory && r.subcategory.toLowerCase().includes(nr.name.toLowerCase())) ||
+            (r.subcategory && nr.name.toLowerCase().includes(r.subcategory.toLowerCase())))
+      );
+    });
+  };
+
+  // Czy nasza jednostka posiada zasoby dla danego alertu
+  const canMyOrgHelpAlert = (alert: AlertMapItem): boolean => {
+    return getMatchingOrgResourcesForAlert(alert).length > 0;
+  };
+
+  // Łączna liczba alertów, dla których nasza jednostka posiada zasoby
+  const myOrgCanHelpCount = useMemo(() => {
+    return alerts.filter(canMyOrgHelpAlert).length;
+  }, [alerts, orgResources]);
+
   // Filtrowanie alertów
   const filteredAlerts = useMemo(() => {
     return alerts.filter((alert) => {
+      // 0. Filtr: Posiadanie zasobów w magazynie naszej jednostki
+      if (onlyMyOrgCanHelp && !canMyOrgHelpAlert(alert)) {
+        return false;
+      }
+
       // 1. Kategoria
       if (selectedCategory !== 'all' && alert.category !== selectedCategory) {
         return false;
@@ -423,6 +505,7 @@ export const OperationalAlertsPage: React.FC = () => {
       // 5. Wyszukiwarka pełnotekstowa
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
+        const matchTitle = alert.title ? alert.title.toLowerCase().includes(q) : false;
         const matchContent = alert.content.toLowerCase().includes(q);
         const matchCategory = alert.category.toLowerCase().includes(q);
         const matchLocation = alert.locationName?.toLowerCase().includes(q);
@@ -438,6 +521,7 @@ export const OperationalAlertsPage: React.FC = () => {
         );
 
         return (
+          matchTitle ||
           matchContent ||
           matchCategory ||
           matchLocation ||
@@ -451,6 +535,30 @@ export const OperationalAlertsPage: React.FC = () => {
       }
 
       return true;
+    }).sort((a, b) => {
+      if (sortBy === 'severity-desc') {
+        const scoreA = getAlertSeverityScore(a.severity);
+        const scoreB = getAlertSeverityScore(b.severity);
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortBy === 'severity-asc') {
+        const scoreA = getAlertSeverityScore(a.severity);
+        const scoreB = getAlertSeverityScore(b.severity);
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortBy === 'demands-critical') {
+        const scoreA = getAlertResourceUrgencyScore(a);
+        const scoreB = getAlertResourceUrgencyScore(b);
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortBy === 'date-asc') {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      // date-desc
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }, [
     alerts,
@@ -459,6 +567,9 @@ export const OperationalAlertsPage: React.FC = () => {
     selectedCountyOrCity,
     resourceFilter,
     searchQuery,
+    sortBy,
+    onlyMyOrgCanHelp,
+    orgResources,
   ]);
 
   const formatDate = (dateStr: string) => {
@@ -512,6 +623,22 @@ export const OperationalAlertsPage: React.FC = () => {
       default:
         return 'bg-slate-100 text-slate-700 border-slate-200 font-medium';
     }
+  };
+
+  const handleNavigateToCard = (alert: AlertMapItem) => {
+    if (viewMode === 'map') {
+      setViewMode('split');
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`alert-card-${alert.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-indigo-400', 'transition-all');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-indigo-400');
+        }, 2500);
+      }
+    }, 100);
   };
 
   return (
@@ -591,187 +718,196 @@ export const OperationalAlertsPage: React.FC = () => {
               </div>
             </div>
 
-            <form onSubmit={handleSubmitAllocation} className="space-y-4">
-              {/* Baner informacyjny o przydziale częściowym */}
-              <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-900 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <Info className="h-4 w-4 text-amber-700 shrink-0" />
-                  <span>Elastyczny przydział częściowy</span>
-                </div>
-                <p className="text-[11px] text-amber-800 leading-snug">
-                  Nie musisz zamykać całej potrzeby na raz! Przydziel tyle zasobów, ile Twoja jednostka może zadysponować (np. 50 z 500). Pozostałą brakującą część dołożą inne służby.
-                </p>
-              </div>
+            {(() => {
+              const matchingCategoryResources = orgResources.filter(
+                (r) =>
+                  r.type.toLowerCase() === allocatingResource.resourceType.toLowerCase() &&
+                  r.quantity > 0
+              );
+              const selectedOrgResource = orgResources.find((r) => r.id === selectedOrgResourceId);
+              const remainingNeeded = Math.max(
+                0,
+                allocatingResource.quantityNeeded -
+                  (allocatingResource.quantityAllocated || 0)
+              );
+              const maxAllowed = selectedOrgResource
+                ? Math.min(remainingNeeded, selectedOrgResource.quantity)
+                : remainingNeeded;
+              const hasNoMatching = matchingCategoryResources.length === 0;
 
-              {/* Wybór zasobu z magazynu organizacji */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>Zasób z magazynu Twojej jednostki:</span>
-                  <span className="text-[10px] text-indigo-600 font-semibold lowercase">
-                    {user?.organization?.name || 'Twoja organizacja'}
-                  </span>
-                </label>
-
-                {orgResources.length === 0 ? (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-                    <p className="font-semibold">Brak zarejestrowanych zasobów w magazynie</p>
-                    <p className="text-[11px] text-amber-700 mt-0.5">
-                      Możesz zadeklarować przydział bezpośredni wpisując ilość poniżej.
-                    </p>
+              return (
+                <form onSubmit={handleSubmitAllocation} className="space-y-4">
+                  {/* Informacja o wymaganej kategorii */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 text-xs text-slate-700 flex items-center justify-between">
+                    <span className="font-semibold text-slate-500">Wymagana kategoria zasobu:</span>
+                    <span className="font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                      {allocatingResource.resourceType}
+                    </span>
                   </div>
-                ) : (
-                  <select
-                    value={selectedOrgResourceId}
-                    onChange={(e) => setSelectedOrgResourceId(e.target.value)}
-                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
-                  >
-                    {orgResources.map((res) => (
-                      <option key={res.id} value={res.id}>
-                        {res.subcategory || res.type.toUpperCase()} • Dostępne w magazynie: {res.quantity} szt. ({res.timeframe})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
 
-              {/* Ilość do przekazania z szybkimi przyciskami */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Ilość do przekazania ({allocatingResource.unit}):
-                  </label>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    Brakuje:{' '}
-                    <strong className="text-amber-800">
-                      {Math.max(
-                        0,
-                        allocatingResource.quantityNeeded -
-                          (allocatingResource.quantityAllocated || 0)
-                      )}{' '}
-                      {allocatingResource.unit}
-                    </strong>
-                  </span>
-                </div>
+                  {/* Wybór zasobu z magazynu organizacji */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                      <span>Zasób z magazynu Twojej jednostki:</span>
+                      <span className="text-[10px] text-indigo-600 font-semibold lowercase">
+                        {user?.organization?.name || 'Twoja organizacja'}
+                      </span>
+                    </label>
 
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={allocateQuantity}
-                  onChange={(e) => setAllocateQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-sm font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
-                />
+                    {hasNoMatching ? (
+                      <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-800 space-y-1">
+                        <p className="font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                          <span>Brak dostępnych zasobów w kategorii „{allocatingResource.resourceType.toUpperCase()}”</span>
+                        </p>
+                        <p className="text-[11px] text-red-700">
+                          Twoja jednostka nie posiada w magazynie wolnych zasobów z kategorii <strong>{allocatingResource.resourceType}</strong>. Nie można przydzielić zasobów z innej kategorii.
+                        </p>
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedOrgResourceId}
+                        onChange={(e) => handleSelectOrgResource(e.target.value)}
+                        className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                      >
+                        {matchingCategoryResources.map((res) => (
+                          <option key={res.id} value={res.id}>
+                            {res.subcategory || res.type.toUpperCase()} • Dostępne w magazynie: {res.quantity} szt. ({res.timeframe})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
 
-                {/* Szybkie przyciski ilości */}
-                <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  {[10, 25, 50, 100].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => setAllocateQuantity(num)}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition"
-                    >
-                      {num} {allocatingResource.unit}
-                    </button>
-                  ))}
-                  {(() => {
-                    const selRes = orgResources.find((r) => r.id === selectedOrgResourceId);
-                    const remaining = Math.max(
-                      1,
-                      allocatingResource.quantityNeeded -
-                        (allocatingResource.quantityAllocated || 0)
-                    );
-                    return (
-                      <>
-                        {selRes && selRes.quantity > 0 && (
+                  {!hasNoMatching && (
+                    <>
+                      {/* Ilość do przekazania z szybkimi przyciskami */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Ilość do przekazania ({allocatingResource.unit}):
+                          </label>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            Brakuje:{' '}
+                            <strong className="text-amber-800">
+                              {remainingNeeded} {allocatingResource.unit}
+                            </strong>
+                            {selectedOrgResource && (
+                              <span className="ml-1.5 text-slate-400">
+                                (W magazynie: <strong>{selectedOrgResource.quantity}</strong>)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+
+                        <input
+                          type="number"
+                          min="1"
+                          max={maxAllowed}
+                          required
+                          value={allocateQuantity || ''}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            setAllocateQuantity(Math.min(maxAllowed, Math.max(1, val)));
+                          }}
+                          className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-sm font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                        />
+
+                        {/* Szybkie przyciski ilości */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          {[10, 25, 50, 100]
+                            .filter((num) => num < maxAllowed)
+                            .map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => setAllocateQuantity(num)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition"
+                              >
+                                {num} {allocatingResource.unit}
+                              </button>
+                            ))}
                           <button
                             type="button"
-                            onClick={() => setAllocateQuantity(selRes.quantity)}
+                            onClick={() => setAllocateQuantity(maxAllowed)}
                             className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200/60 transition"
                           >
-                            Maks. magazyn ({selRes.quantity})
+                            Maks. dozwolony przydział ({maxAllowed})
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setAllocateQuantity(remaining)}
-                          className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold border border-amber-200/60 transition"
-                        >
-                          Całość brakujących ({remaining})
-                        </button>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
+                        </div>
+                      </div>
 
-              {/* Podgląd stanu na żywo */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-[11px] space-y-1 text-slate-600">
-                <div className="flex items-center justify-between">
-                  <span>Nowy stan realizacji alertu:</span>
-                  <strong className="text-emerald-700 font-mono">
-                    {Math.min(
-                      allocatingResource.quantityNeeded,
-                      (allocatingResource.quantityAllocated || 0) + allocateQuantity
-                    )}{' '}
-                    / {allocatingResource.quantityNeeded} {allocatingResource.unit} (
-                    {Math.min(
-                      100,
-                      Math.round(
-                        (((allocatingResource.quantityAllocated || 0) + allocateQuantity) /
-                          allocatingResource.quantityNeeded) *
-                          100
-                      )
-                    )}
-                    %)
-                  </strong>
-                </div>
-              </div>
+                      {/* Podgląd stanu na żywo */}
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-[11px] space-y-1 text-slate-600">
+                        <div className="flex items-center justify-between">
+                          <span>Nowy stan realizacji alertu:</span>
+                          <strong className="text-emerald-700 font-mono">
+                            {Math.min(
+                              allocatingResource.quantityNeeded,
+                              (allocatingResource.quantityAllocated || 0) + allocateQuantity
+                            )}{' '}
+                            / {allocatingResource.quantityNeeded} {allocatingResource.unit} (
+                            {Math.min(
+                              100,
+                              Math.round(
+                                (((allocatingResource.quantityAllocated || 0) + allocateQuantity) /
+                                  allocatingResource.quantityNeeded) *
+                                  100
+                              )
+                            )}
+                            %)
+                          </strong>
+                        </div>
+                      </div>
 
-              {/* Notatka operacyjna */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Notatka dyspozytorska / Transport (Opcjonalnie):
-                </label>
-                <input
-                  type="text"
-                  value={allocationNote}
-                  onChange={(e) => setAllocationNote(e.target.value)}
-                  placeholder="np. Wysłano 1 wóz kwatermistrzowski z remizy w Kłodzku"
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAllocatingAlert(null);
-                    setAllocatingResource(null);
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
-                >
-                  Anuluj
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingAlloc}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition disabled:opacity-50"
-                >
-                  {isSubmittingAlloc ? (
-                    <>
-                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      <span>Przydzielanie...</span>
-                    </>
-                  ) : (
-                    <>
-                      <PackageCheck className="h-4 w-4" />
-                      <span>Zatwierdź i Przydziel ({allocateQuantity} {allocatingResource.unit})</span>
+                      {/* Notatka operacyjna */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                          Notatka dyspozytorska / Transport (Opcjonalnie):
+                        </label>
+                        <input
+                          type="text"
+                          value={allocationNote}
+                          onChange={(e) => setAllocationNote(e.target.value)}
+                          placeholder="np. Wysłano 1 wóz kwatermistrzowski z remizy w Kłodzku"
+                          className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
                     </>
                   )}
-                </button>
-              </div>
-            </form>
+
+                  <div className="pt-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAllocatingAlert(null);
+                        setAllocatingResource(null);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                    >
+                      Anuluj
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingAlloc || hasNoMatching || allocateQuantity <= 0}
+                      className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmittingAlloc ? (
+                        <>
+                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          <span>Przydzielanie...</span>
+                        </>
+                      ) : (
+                        <>
+                          <PackageCheck className="h-4 w-4" />
+                          <span>Zatwierdź i Przydziel ({allocateQuantity} {allocatingResource.unit})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -963,151 +1099,6 @@ export const OperationalAlertsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Zgłaszania Nowego Zapotrzebowania do Alertu */}
-      {addingDemandAlert && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-5 animate-scale-up">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-amber-600 font-bold">
-                <Plus className="h-5 w-5" />
-                <h3 className="text-base font-extrabold text-slate-900">
-                  Zgłoś Zapotrzebowanie do Alertu
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAddingDemandAlert(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 text-xs text-slate-600">
-              <span className="font-semibold text-slate-500">Dotyczy zdarzenia: </span>
-              <strong className="text-slate-900">
-                {addingDemandAlert.locationName ||
-                  addingDemandAlert.municipality?.name ||
-                  'Lokalizacja'}
-              </strong>
-              <p className="mt-1 text-slate-700 italic line-clamp-2">„{addingDemandAlert.content}”</p>
-            </div>
-
-            <form onSubmit={handleSubmitNewDemand} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Typ zasobu */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                    Typ zasobu
-                  </label>
-                  <select
-                    value={newDemandType}
-                    onChange={(e) => setNewDemandType(e.target.value as any)}
-                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                  >
-                    <option value="woda">💧 Woda / Prowiant</option>
-                    <option value="sprzet">🛠️ Sprzęt / Pompy</option>
-                    <option value="ludzie">👷 Ludzie / Ratownicy</option>
-                    <option value="inne">📦 Inne zasoby</option>
-                  </select>
-                </div>
-
-                {/* Pilność */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                    Priorytet / Pilność
-                  </label>
-                  <select
-                    value={newDemandUrgency}
-                    onChange={(e) => setNewDemandUrgency(e.target.value as any)}
-                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                  >
-                    <option value="niski">Niski</option>
-                    <option value="średni">Średni</option>
-                    <option value="wysoki">Wysoki</option>
-                    <option value="krytyczny">🚨 Krytyczny</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Nazwa zasobu */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                  Nazwa / Opis potrzebnego zasobu
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newDemandName}
-                  onChange={(e) => setNewDemandName(e.target.value)}
-                  placeholder="np. Agregat prądotwórczy 5kW, Pompy szlamowe, Worki z piaskiem"
-                  className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Ilość i jednostka */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                    Potrzebna ilość
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={newDemandQuantity}
-                    onChange={(e) =>
-                      setNewDemandQuantity(Math.max(1, parseInt(e.target.value) || 1))
-                    }
-                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs font-bold text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                    Jednostka
-                  </label>
-                  <input
-                    type="text"
-                    value={newDemandUnit}
-                    onChange={(e) => setNewDemandUnit(e.target.value)}
-                    placeholder="szt."
-                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAddingDemandAlert(null)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
-                >
-                  Anuluj
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingNewDemand}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/25 transition disabled:opacity-50"
-                >
-                  {isSubmittingNewDemand ? (
-                    <>
-                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      <span>Zapisywanie...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4" />
-                      <span>Dodaj zapotrzebowanie</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* 1. Nagłówek Sekcji Operacyjnej */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -1121,17 +1112,6 @@ export const OperationalAlertsPage: React.FC = () => {
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Przeglądaj aktywne zdarzenia, weryfikuj zapotrzebowanie na sprzęt i przydzielaj zasoby swojej jednostki na miejsce akcji.
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={fetchOperationalData}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-xs transition"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Odśwież dane</span>
-          </button>
         </div>
       </div>
 
@@ -1213,10 +1193,57 @@ export const OperationalAlertsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Dolna belka filtrów: Przełączniki widoku & Kategorie */}
+        {/* Pasek filtrowania: Zasoby własnej jednostki / firmy */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOnlyMyOrgCanHelp((prev) => !prev)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer border ${
+                onlyMyOrgCanHelp
+                  ? 'bg-amber-600 border-amber-600 text-white shadow-amber-600/30 ring-2 ring-amber-400/40 active:scale-95'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-200/90 hover:border-amber-300'
+              }`}
+              title="Filtruj i pokaż tylko alerty, dla których Twoja jednostka posiada zasoby w magazynie"
+            >
+              <PackageCheck className={`h-4 w-4 ${onlyMyOrgCanHelp ? 'text-white' : 'text-amber-700'}`} />
+              <span>Posiadamy zasoby na te alerty</span>
+              <span
+                className={`px-2 py-0.5 rounded-lg text-[11px] font-black ${
+                  onlyMyOrgCanHelp
+                    ? 'bg-white text-amber-900'
+                    : 'bg-amber-200/90 text-amber-950'
+                }`}
+              >
+                {myOrgCanHelpCount}
+              </span>
+            </button>
+
+            {onlyMyOrgCanHelp && (
+              <button
+                type="button"
+                onClick={() => setOnlyMyOrgCanHelp(false)}
+                className="flex items-center gap-1 text-xs text-amber-800 hover:text-amber-950 underline font-semibold cursor-pointer px-1 py-1"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Pokaż wszystkie alerty ({alerts.length})</span>
+              </button>
+            )}
+          </div>
+
+          <div className="text-xs text-slate-500 flex items-center gap-1.5">
+            <Building className="h-3.5 w-3.5 text-indigo-600" />
+            <span>Stan magazynu Twojej jednostki:</span>
+            <strong className="text-indigo-700 font-bold">
+              {orgResources.reduce((acc, r) => acc + r.quantity, 0)} szt. zasobów
+            </strong>
+          </div>
+        </div>
+
+        {/* Dolna belka filtrów: Przełączniki widoku, Kategorie & Sortowanie */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-3 border-t border-slate-100">
           {/* Przełączniki widoku */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode('split')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
@@ -1278,6 +1305,23 @@ export const OperationalAlertsPage: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Sortowanie */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5 text-xs shrink-0">
+            <ArrowUpDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <span className="text-slate-500 hidden sm:inline">Sortuj:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as OperationalSortOption)}
+              className="bg-transparent font-bold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="date-desc">Najnowsze</option>
+              <option value="date-asc">Najstarsze</option>
+              <option value="severity-desc">🚨 Krytyczność zdarzenia (najwyższa)</option>
+              <option value="severity-asc">🟢 Krytyczność zdarzenia (najniższa)</option>
+              <option value="demands-critical">📦 Posiadanie krytycznych żądań</option>
+            </select>
+          </div>
         </div>
       </section>
 
@@ -1317,6 +1361,9 @@ export const OperationalAlertsPage: React.FC = () => {
                 height={viewMode === 'map' ? '600px' : '440px'}
                 focusedAlertId={focusedAlertId}
                 focusKey={focusKey}
+                mode={mapMode}
+                onModeChange={setMapMode}
+                onNavigateToCard={handleNavigateToCard}
               />
             </section>
           )}
@@ -1336,7 +1383,12 @@ export const OperationalAlertsPage: React.FC = () => {
                 </span>
               </div>
 
-              {filteredAlerts.length === 0 ? (
+              {isLoading ? (
+                <div className="py-16 text-center text-slate-400">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent mb-2"></div>
+                  <p className="text-xs">Ładowanie zdarzeń operacyjnych...</p>
+                </div>
+              ) : filteredAlerts.length === 0 ? (
                 <div className="rounded-3xl bg-white p-12 text-center border border-slate-200/80 shadow-xs max-w-md mx-auto space-y-4">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100">
                     <ShieldCheck className="h-7 w-7" />
@@ -1352,6 +1404,7 @@ export const OperationalAlertsPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {filteredAlerts.map((alert) => {
                     const categoryBadge = getCategoryBadge(alert.category);
+                    const severityInfo = getSeverityBadgeInfo(alert.severity);
                     const orgName = alert.author?.organization?.name || 'Służby Ratunkowe';
                     const orgType = alert.author?.organization?.type;
                     const authorName = alert.author
@@ -1360,21 +1413,45 @@ export const OperationalAlertsPage: React.FC = () => {
                     const needed = Array.isArray(alert.neededResources)
                       ? alert.neededResources
                       : [];
+                    const matchingOrgDemands = getMatchingOrgResourcesForAlert(alert);
 
                     return (
                       <article
                         key={alert.id}
-                        className="group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition duration-200 space-y-4"
+                        id={`alert-card-${alert.id}`}
+                        className={`group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border transition duration-200 space-y-4 ${
+                          matchingOrgDemands.length > 0
+                            ? 'border-emerald-300/90 shadow-emerald-500/5 ring-1 ring-emerald-400/30'
+                            : 'border-slate-200/80 hover:border-indigo-300 hover:shadow-md'
+                        }`}
                       >
                         <div className="space-y-3.5">
-                          {/* Górna belka: Kategoria & Lokalizacja */}
+                          {/* Górna belka: Krytyczność, Kategoria & Lokalizacja */}
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
-                            >
-                              {categoryBadge.icon}
-                              <span>{alert.category}</span>
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {/* Badge Krytyczności */}
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                              >
+                                <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                                <span>{severityInfo.label}</span>
+                              </span>
+
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
+                              >
+                                {categoryBadge.icon}
+                                <span>{alert.category}</span>
+                              </span>
+
+                              {/* Badge posiadania zasobów przez zalogowaną jednostkę */}
+                              {matchingOrgDemands.length > 0 && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 text-[11px] font-extrabold border border-emerald-300 shadow-2xs">
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                                  <span>Posiadasz zasoby ({matchingOrgDemands.length})</span>
+                                </span>
+                              )}
+                            </div>
 
                             <button
                               type="button"
@@ -1400,12 +1477,18 @@ export const OperationalAlertsPage: React.FC = () => {
                             </button>
                           </div>
 
-                          {/* Treść alertu */}
-                          <p className="text-sm sm:text-base text-slate-800 font-semibold leading-relaxed">
-                            {alert.content}
-                          </p>
-
-                          {/* Sekcja Zapotrzebowania na Zasoby */}
+                          {/* Tytuł i Treść alertu */}
+                          <div className="space-y-1.5">
+                            {alert.title && (
+                              <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug tracking-tight">
+                                {alert.title}
+                              </h3>
+                            )}
+                            <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                              {alert.content}
+                            </p>
+                          </div>
+{/* Sekcja Zapotrzebowania na Zasoby */}
                           {needed.length > 0 ? (
                             <div className="rounded-2xl bg-amber-50/70 border border-amber-200/80 p-3.5 space-y-3">
                               <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-amber-900 border-b border-amber-200/60 pb-2">
@@ -1424,16 +1507,6 @@ export const OperationalAlertsPage: React.FC = () => {
                                     <Pencil className="h-3 w-3 text-indigo-600" />
                                     <span>Zarządzaj / Edytuj</span>
                                   </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => openAddDemandModal(alert)}
-                                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-200/80 hover:bg-amber-300 text-amber-950 text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
-                                    title="Dodaj nową potrzebę do tego alertu"
-                                  >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    <span>+ Dodaj</span>
-                                  </button>
                                 </div>
                               </div>
 
@@ -1449,14 +1522,27 @@ export const OperationalAlertsPage: React.FC = () => {
                                     Array.isArray(nr.allocations) && nr.allocations.length > 0;
                                   const historyKey = `${alert.id}-${nr.id}`;
                                   const isExpanded = !!expandedAllocAlerts[historyKey];
+                                  const hasInOrg = orgResources.some(
+                                    (r) =>
+                                      r.quantity > 0 &&
+                                      (r.type.toLowerCase() === nr.resourceType.toLowerCase() ||
+                                        (r.subcategory &&
+                                          r.subcategory.toLowerCase().includes(nr.name.toLowerCase())) ||
+                                        (r.subcategory &&
+                                          nr.name.toLowerCase().includes(r.subcategory.toLowerCase())))
+                                  );
 
                                   return (
                                     <div
                                       key={nr.id}
-                                      className="rounded-xl bg-white p-3 border border-amber-200/70 shadow-2xs space-y-2"
+                                      className={`rounded-xl bg-white p-3 border shadow-2xs space-y-2 ${
+                                        hasInOrg && !isFulfilled
+                                          ? 'border-emerald-300 ring-1 ring-emerald-200/60'
+                                          : 'border-amber-200/70'
+                                      }`}
                                     >
                                       <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-wrap items-center gap-1.5">
                                           <span className="font-bold text-xs text-slate-900">
                                             {nr.name}
                                           </span>
@@ -1467,22 +1553,23 @@ export const OperationalAlertsPage: React.FC = () => {
                                           >
                                             {nr.urgency || 'Wysoki'}
                                           </span>
+                                          {hasInOrg && !isFulfilled && (
+                                            <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                              ✨ W Twoim magazynie
+                                            </span>
+                                          )}
                                         </div>
 
-                                        <button
-                                          type="button"
-                                          onClick={() => openAllocationModal(alert, nr)}
-                                          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 ${
-                                            isFulfilled
-                                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                                              : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                                          }`}
-                                        >
-                                          <PackageCheck className="h-3.5 w-3.5" />
-                                          <span>
-                                            {isFulfilled ? '+ Dodaj więcej' : 'Przydziel zasoby'}
-                                          </span>
-                                        </button>
+                                        {!isFulfilled && (
+                                          <button
+                                            type="button"
+                                            onClick={() => openAllocationModal(alert, nr)}
+                                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                                          >
+                                            <PackageCheck className="h-3.5 w-3.5" />
+                                            <span>Przydziel zasoby</span>
+                                          </button>
+                                        )}
                                       </div>
 
                                       {/* Pasek postępu */}
@@ -1590,11 +1677,11 @@ export const OperationalAlertsPage: React.FC = () => {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => openAddDemandModal(alert)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 transition cursor-pointer self-start sm:self-auto"
+                                onClick={() => openManageDemandsModal(alert)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200 transition cursor-pointer self-start sm:self-auto"
                               >
-                                <Plus className="h-3.5 w-3.5" />
-                                <span>Zgłoś zapotrzebowanie</span>
+                                <Pencil className="h-3.5 w-3.5 text-indigo-600" />
+                                <span>Zarządzaj / Edytuj</span>
                               </button>
                             </div>
                           )}
@@ -1644,6 +1731,19 @@ export const OperationalAlertsPage: React.FC = () => {
                               <MapPin className="h-3.5 w-3.5 text-indigo-600" />
                               <span>Na mapie</span>
                             </button>
+
+                            {user?.role === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAlert(alert)}
+                                disabled={actionLoadingId === alert.id}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 text-xs font-bold transition border border-rose-200/80 shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                                title="Całkowicie usuń ten alert (Tylko Admin). Kopia danych zostanie zachowana w logach systemowych."
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                                <span>Usuń trwale</span>
+                              </button>
+                            )}
 
                             <div className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 font-mono text-[11px]">
                               <Calendar className="h-3.5 w-3.5 text-slate-400" />
