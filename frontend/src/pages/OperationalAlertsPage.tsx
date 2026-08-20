@@ -237,8 +237,9 @@ export const OperationalAlertsPage: React.FC = () => {
     setIsSubmittingAlloc(true);
     try {
       const res = await api.post(
-        `/alerts/${allocatingAlert.id}/needed-resources/${allocatingResource.id}/allocate`,
+        `/alerts/${allocatingAlert.id}/allocate-resource`,
         {
+          neededResourceId: allocatingResource.id,
           resourceId: selectedOrgResourceId,
           quantity: allocateQuantity,
           note: allocationNote.trim() || undefined,
@@ -251,10 +252,10 @@ export const OperationalAlertsPage: React.FC = () => {
           prev.map((a) => (a.id === updatedAlert.id ? updatedAlert : a))
         );
 
-        if (res.data.orgResource) {
-          const updatedOrgRes = res.data.orgResource;
+        const returnedOrgRes = res.data.deductedResource || res.data.orgResource;
+        if (returnedOrgRes) {
           setOrgResources((prev) =>
-            prev.map((r) => (r.id === updatedOrgRes.id ? updatedOrgRes : r))
+            prev.map((r) => (r.id === returnedOrgRes.id ? returnedOrgRes : r))
           );
         } else {
           const updatedOrgResourcesRes = await api

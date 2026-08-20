@@ -37,8 +37,9 @@ router.get('/:id', getAlertById);
 // POST /api/alerts - Tworzy nowy alert (wymaga protect)
 router.post('/', protect, createAlert);
 
-// POST /api/alerts/:id/allocate-resource - Przydziela zasoby do alertu (wymaga protect)
+// POST /api/alerts/:id/allocate-resource oraz /api/alerts/:id/needed-resources/:neededResourceId/allocate - Przydziela zasoby do alertu (wymaga protect)
 router.post('/:id/allocate-resource', protect, allocateResourceToAlert);
+router.post('/:id/needed-resources/:neededResourceId/allocate', protect, allocateResourceToAlert);
 
 // POST /api/alerts/:id/posts - Dodaje nowy wpis/post do alertu (wymaga protect)
 router.post('/:id/posts', protect, createAlertPost);

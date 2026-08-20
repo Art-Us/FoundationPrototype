@@ -760,9 +760,10 @@ export const allocateResourceToAlert = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { neededResourceId, quantity, resourceId, note } = req.body;
+    const targetNeededResourceId = req.params.neededResourceId || req.body.neededResourceId;
+    const { quantity, resourceId, note } = req.body;
 
-    if (!neededResourceId || !quantity || Number(quantity) <= 0) {
+    if (!targetNeededResourceId || !quantity || Number(quantity) <= 0) {
       res.status(400).json({
         success: false,
         message: 'Identyfikator zapotrzebowania (neededResourceId) oraz dodatnia ilość (quantity) są wymagane.',
@@ -809,7 +810,7 @@ export const allocateResourceToAlert = async (
       ? [...alert.neededResources]
       : [];
 
-    const targetReqIndex = neededResources.findIndex((r) => r.id === neededResourceId);
+    const targetReqIndex = neededResources.findIndex((r) => r.id === targetNeededResourceId);
     if (targetReqIndex === -1) {
       res.status(404).json({
         success: false,
