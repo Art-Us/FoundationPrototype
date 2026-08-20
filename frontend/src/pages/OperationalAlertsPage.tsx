@@ -95,6 +95,7 @@ export const OperationalAlertsPage: React.FC = () => {
   const [allocationNote, setAllocationNote] = useState<string>('');
   const [isSubmittingAlloc, setIsSubmittingAlloc] = useState(false);
   const [expandedAllocAlerts, setExpandedAllocAlerts] = useState<Record<string, boolean>>({});
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Toast
   const [toast, setToast] = useState<{
@@ -278,6 +279,34 @@ export const OperationalAlertsPage: React.FC = () => {
       );
     } finally {
       setIsSubmittingAlloc(false);
+    }
+  };
+
+  // Trwałe usunięcie alertu (Tylko Administrator)
+  const handleDeleteAlert = async (alert: AlertMapItem) => {
+    if (
+      !window.confirm(
+        `Czy na pewno chcesz CAŁKOWICIE USUNĄĆ ten alert?\n\n"${alert.title || alert.category}"\n\nPełna kopia danych zostanie zachowana w logach systemowych administratora, skąd będzie można cofnąć tę operację (Rollback).`
+      )
+    ) {
+      return;
+    }
+
+    setActionLoadingId(alert.id);
+    try {
+      const res = await api.delete(`/alerts/${alert.id}`);
+      if (res.data.success) {
+        showToast(res.data.message || 'Alert został trwale usunięty z systemu.');
+        setAlerts((prev) => prev.filter((a) => a.id !== alert.id));
+      }
+    } catch (error: any) {
+      console.error('Błąd trwałego usuwania alertu:', error);
+      showToast(
+        error.response?.data?.message || 'Nie udało się usunąć alertu.',
+        'error'
+      );
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -1702,6 +1731,19 @@ export const OperationalAlertsPage: React.FC = () => {
                               <MapPin className="h-3.5 w-3.5 text-indigo-600" />
                               <span>Na mapie</span>
                             </button>
+
+                            {user?.role === 'admin' && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAlert(alert)}
+                                disabled={actionLoadingId === alert.id}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 text-xs font-bold transition border border-rose-200/80 shadow-2xs hover:shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                                title="Całkowicie usuń ten alert (Tylko Admin). Kopia danych zostanie zachowana w logach systemowych."
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                                <span>Usuń trwale</span>
+                              </button>
+                            )}
 
                             <div className="flex items-center gap-1.5 text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 font-mono text-[11px]">
                               <Calendar className="h-3.5 w-3.5 text-slate-400" />

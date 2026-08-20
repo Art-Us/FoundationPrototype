@@ -1261,3 +1261,73 @@ export const addPostChatMessage = async (
     });
   }
 };
+
+/**
+ * @desc    Całkowite usunięcie alertu (Tylko dla Administratora) z zachowaniem pełnej kopii w logach
+ * @route   DELETE /api/alerts/:id
+ * @access  Private (adminOnly)
+ */
+export const deleteAlert = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        message: 'Brak autoryzacji.',
+      });
+      return;
+    }
+
+    if (user.role !== 'admin') {
+      res.status(403).json({
+        success: false,
+        message: 'Brak uprawnień. Tylko administrator może trwale usunąć alert.',
+      });
+      return;
+    }
+
+    const alert = await Alert.findByPk(id);
+    if (!alert) {
+      res.status(404).json({
+        success: false,
+        message: 'Alert nie został odnaleziony.',
+      });
+      return;
+    }
+
+    // Pełna kopia stanu alertu do zachowania w dzienniku audytu
+    const alertSnapshot = alert.toJSON();
+
+    await recordAuditLog({
+      action: 'alert_deleted',
+      entityType: 'alert',
+      entityId: alert.id,
+      user: user,
+      alertId: alert.id,
+      alertTitle: alert.title || alert.category,
+      details: `Całkowite usunięcie alertu: "${alert.title || alert.category}" (ID: ${alert.id}) przez administratora ${user.firstName} ${user.lastName}`,
+      previousState: alertSnapshot,
+      newState: null,
+    });
+
+    await alert.destroy();
+
+    res.status(200).json({
+      success: true,
+      message: 'Alert został całkowicie usunięty z systemu. Kopia danych została zachowana w logach audytowych i może zostać przywrócona przez administratora.',
+      data: { id },
+    });
+  } catch (error: any) {
+    console.error('Błąd trwałego usuwania alertu:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Wystąpił błąd podczas usuwania alertu.',
+      error: error.message,
+    });
+  }
+};

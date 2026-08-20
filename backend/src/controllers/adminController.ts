@@ -1066,6 +1066,48 @@ export const revertAuditLog = async (
         await alert.save();
         rollbackDetails = `Wycofano wznowienie alertu "${alert.title || alert.category}" (przeniesiono do archiwum)`;
       }
+    } else if (log.action === 'alert_deleted' && log.previousState) {
+      const prev = log.previousState;
+      const existing = await Alert.findByPk(prev.id);
+      if (existing) {
+        res.status(400).json({
+          success: false,
+          message: 'Alert o tym identyfikatorze już istnieje w bazie danych.',
+        });
+        return;
+      }
+
+      const history = Array.isArray(prev.history) ? [...prev.history] : [];
+      history.push({
+        id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        action: 'created',
+        timestamp: new Date().toISOString(),
+        userName: `${adminUser.firstName} ${adminUser.lastName} (Admin)`,
+        details: `Przywrócenie całkowicie usuniętego alertu z dziennika zdarzeń (Rollback wpisu logu ${log.id})`,
+      });
+
+      const restoredAlert = await Alert.create({
+        id: prev.id,
+        title: prev.title,
+        content: prev.content,
+        category: prev.category,
+        severity: prev.severity,
+        isActive: prev.isActive !== undefined ? prev.isActive : true,
+        municipalityId: prev.municipalityId,
+        authorId: prev.authorId,
+        locationName: prev.locationName,
+        county: prev.county,
+        voivodeship: prev.voivodeship,
+        lat: prev.lat,
+        lng: prev.lng,
+        neededResources: prev.neededResources || [],
+        posts: prev.posts || [],
+        history: history,
+        createdAt: prev.createdAt ? new Date(prev.createdAt) : new Date(),
+        updatedAt: new Date(),
+      });
+
+      rollbackDetails = `Przywrócono całkowicie usunięty alert "${restoredAlert.title || restoredAlert.category}" (ID: ${restoredAlert.id})`;
     } else if (log.action === 'resource_allocated' && log.alertId) {
       const alert = await Alert.findByPk(log.alertId);
       if (alert && Array.isArray(alert.neededResources)) {

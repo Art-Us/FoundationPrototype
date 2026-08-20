@@ -28,6 +28,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from 'lucide-react';
 
 interface OrgResourceItem {
@@ -305,6 +306,35 @@ export const AlertDetailsPage: React.FC = () => {
       );
     } finally {
       setIsSubmittingAlloc(false);
+    }
+  };
+
+  const [isDeletingAlert, setIsDeletingAlert] = useState(false);
+
+  const handleDeleteAlert = async () => {
+    if (!alert) return;
+    if (
+      !window.confirm(
+        `Czy na pewno chcesz CAŁKOWICIE USUNĄĆ ten alert?\n\n"${alert.title || alert.category}"\n\nPełna kopia danych zostanie zachowana w logach systemowych administratora, skąd będzie można cofnąć tę operację (Rollback).`
+      )
+    ) {
+      return;
+    }
+
+    setIsDeletingAlert(true);
+    try {
+      const res = await api.delete(`/alerts/${alert.id}`);
+      if (res.data.success) {
+        showToast(res.data.message || 'Alert został trwale usunięty.');
+        navigate('/dashboard/operational');
+      }
+    } catch (err: any) {
+      showToast(
+        err.response?.data?.message || 'Nie udało się usunąć alertu.',
+        'error'
+      );
+    } finally {
+      setIsDeletingAlert(false);
     }
   };
 
@@ -656,6 +686,19 @@ export const AlertDetailsPage: React.FC = () => {
         </button>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
+          {user?.role === 'admin' && (
+            <button
+              type="button"
+              onClick={handleDeleteAlert}
+              disabled={isDeletingAlert}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 shadow-2xs transition cursor-pointer active:scale-95 disabled:opacity-50"
+              title="Całkowicie usuń ten alert z systemu (Tylko Admin). Pełna kopia zostanie zapisana w logach."
+            >
+              <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+              <span>{isDeletingAlert ? 'Usuwanie...' : 'Usuń trwale (Admin)'}</span>
+            </button>
+          )}
+
           <span
             className={`px-3 py-1 rounded-xl text-xs font-bold uppercase tracking-wider border ${
               alert.isActive

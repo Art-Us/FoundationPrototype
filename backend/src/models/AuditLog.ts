@@ -6,6 +6,7 @@ export type AuditLogAction =
   | 'alert_updated'
   | 'alert_deactivated'
   | 'alert_reactivated'
+  | 'alert_deleted'
   | 'resource_demand_added'
   | 'resource_demand_updated'
   | 'resource_allocated'

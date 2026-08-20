@@ -337,6 +337,13 @@ export const AdminAuditLogsPage: React.FC = () => {
           dot: 'bg-teal-500',
           icon: <RotateCcw className="h-3.5 w-3.5" />,
         };
+      case 'alert_deleted':
+        return {
+          label: 'Całkowite usunięcie alertu',
+          bg: 'bg-red-50 text-red-700 border-red-200 font-extrabold',
+          dot: 'bg-red-500',
+          icon: <AlertOctagon className="h-3.5 w-3.5 text-red-600" />,
+        };
       case 'resource_allocated':
         return {
           label: 'Dyspozycja / Alokacja zasobów',
@@ -1322,6 +1329,7 @@ export const AdminAuditLogsPage: React.FC = () => {
               <option value="alert_updated">🔵 Edycja parametrów alertu</option>
               <option value="alert_deactivated">🟠 Odwołanie alertu</option>
               <option value="alert_reactivated">🟢 Wznowienie alertu</option>
+              <option value="alert_deleted">🚨 Całkowite usunięcie alertu</option>
               <option value="resource_allocated">🟣 Dyspozycja / Alokacja zasobów</option>
               <option value="post_created">💬 Nowy wpis na forum</option>
               <option value="user_verified">🛡️ Weryfikacja służb</option>
