@@ -142,37 +142,37 @@ export const LoginPage: React.FC = () => {
             <button
               type="button"
               onClick={() => fillCredentials('admin@fundacjaq.pl', 'admin123')}
-              className="rounded-xl bg-slate-50 hover:bg-slate-100 p-2.5 text-left border border-slate-200 transition"
+              className="rounded-xl bg-slate-50 hover:bg-slate-100 p-2.5 text-left border border-slate-200 transition cursor-pointer"
             >
-              <div className="font-bold text-amber-700">👑 Admin</div>
+              <div className="font-bold text-amber-700">👑 Admin (Fundacja Q)</div>
               <div className="text-slate-500 truncate text-[11px]">admin@fundacjaq.pl</div>
             </button>
 
             <button
               type="button"
-              onClick={() => fillCredentials('koordynator.klodzko@samorzad.pl', 'koord123')}
-              className="rounded-xl bg-slate-50 hover:bg-slate-100 p-2.5 text-left border border-slate-200 transition"
+              onClick={() => fillCredentials('koordynator.nowadeba@samorzad.pl', 'koord123')}
+              className="rounded-xl bg-slate-50 hover:bg-slate-100 p-2.5 text-left border border-slate-200 transition cursor-pointer"
             >
-              <div className="font-bold text-teal-700">🎯 Koordynator</div>
-              <div className="text-slate-500 truncate text-[11px]">koordynator.klodzko...</div>
+              <div className="font-bold text-teal-700">🎯 Koordynator (Nowa Dęba)</div>
+              <div className="text-slate-500 truncate text-[11px]">koordynator.nowadeba...</div>
             </button>
 
             <button
               type="button"
-              onClick={() => fillCredentials('jan.strazak@osp.pl', 'haslo123')}
-              className="rounded-xl bg-slate-50 hover:bg-slate-100 p-2.5 text-left border border-slate-200 transition"
+              onClick={() => fillCredentials('strazak.nowadeba@osp.pl', 'haslo123')}
+              className="rounded-xl bg-slate-50 hover:bg-slate-100 p-2.5 text-left border border-slate-200 transition cursor-pointer"
             >
-              <div className="font-bold text-emerald-700">🚒 Członek (OSP)</div>
-              <div className="text-slate-500 truncate text-[11px]">jan.strazak@osp.pl</div>
+              <div className="font-bold text-emerald-700">🚒 Strażak (OSP Nowa Dęba)</div>
+              <div className="text-slate-500 truncate text-[11px]">strazak.nowadeba@osp.pl</div>
             </button>
 
             <button
               type="button"
-              onClick={() => fillCredentials('anna.nowak@ngo.pl', 'haslo123')}
-              className="rounded-xl bg-slate-50 hover:bg-slate-100 p-2.5 text-left border border-slate-200 transition"
+              onClick={() => fillCredentials('nowy.ochotnik@majdan.pl', 'haslo123')}
+              className="rounded-xl bg-slate-50 hover:bg-slate-100 p-2.5 text-left border border-slate-200 transition cursor-pointer"
             >
-              <div className="font-bold text-purple-700">⏳ Niezweryfikowany</div>
-              <div className="text-slate-500 truncate text-[11px]">anna.nowak@ngo.pl</div>
+              <div className="font-bold text-purple-700">⏳ Oczekujący (Do akceptacji)</div>
+              <div className="text-slate-500 truncate text-[11px]">nowy.ochotnik@majdan.pl</div>
             </button>
           </div>
         </div>
