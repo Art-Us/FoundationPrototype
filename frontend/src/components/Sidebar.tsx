@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
               <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Główne
               </div>
-              <NavLink to="/" onClick={onCloseMobile} className={navLinkClasses}>
+              <NavLink to="/public" onClick={onCloseMobile} className={navLinkClasses}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition">
                     <Radio className="h-4 w-4" />

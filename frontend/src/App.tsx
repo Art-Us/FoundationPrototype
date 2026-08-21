@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
@@ -14,11 +14,24 @@ import { OperationalAlertsPage } from './pages/OperationalAlertsPage';
 import { AlertDetailsPage } from './pages/AlertDetailsPage';
 import { PublicAlertsPage } from './pages/PublicAlertsPage';
 
+// Komponent przekierowujący z adresu głównego (/) do logowania lub do panelu
+const RootRedirect: React.FC = () => {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.isVerified) return <Navigate to="/pending" replace />;
+  if (user.role === 'admin') return <Navigate to="/admin" replace />;
+  return <Navigate to="/dashboard/alerts" replace />;
+};
+
 export const App: React.FC = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Strona główna przekierowuje do logowania jako pierwszej strony */}
+          <Route path="/" element={<RootRedirect />} />
+
           {/* Strony uwierzytelniania (bez bocznego menu) */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -27,7 +40,7 @@ export const App: React.FC = () => {
           {/* Główna powłoka aplikacji z Sidebar i Topbar (Layout) */}
           <Route element={<Layout />}>
             {/* Trasa publiczna */}
-            <Route path="/" element={<PublicAlertsPage />} />
+            <Route path="/public" element={<PublicAlertsPage />} />
 
             {/* Trasy chronione dla zweryfikowanych służb */}
             <Route
@@ -98,7 +111,7 @@ export const App: React.FC = () => {
             />
 
             {/* Przekierowanie fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Route>
         </Routes>
       </AuthProvider>
