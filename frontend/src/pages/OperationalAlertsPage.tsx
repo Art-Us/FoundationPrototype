@@ -138,7 +138,7 @@ export const OperationalAlertsPage: React.FC = () => {
       console.error('Błąd pobierania danych operacyjnych:', err);
       setError(
         err.response?.data?.message ||
-          'Nie udało się pobrać danych operacyjnych. Sprawdź połączenie.'
+        'Nie udało się pobrać danych operacyjnych. Sprawdź połączenie.'
       );
     } finally {
       setIsLoading(false);
@@ -633,11 +633,10 @@ export const OperationalAlertsPage: React.FC = () => {
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce-short">
           <div
-            className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border text-sm font-semibold text-white ${
-              toast.type === 'success'
+            className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border text-sm font-semibold text-white ${toast.type === 'success'
                 ? 'bg-emerald-600 border-emerald-500 shadow-emerald-600/30'
                 : 'bg-red-600 border-red-500 shadow-red-600/30'
-            }`}
+              }`}
           >
             {toast.type === 'success' ? (
               <CheckCircle2 className="h-5 w-5 shrink-0" />
@@ -780,21 +779,19 @@ export const OperationalAlertsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setOnlyMyOrgCanHelp((prev) => !prev)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer border ${
-                onlyMyOrgCanHelp
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer border ${onlyMyOrgCanHelp
                   ? 'bg-emerald-600 border-emerald-600 text-white shadow-emerald-600/30 ring-2 ring-emerald-400/40 active:scale-95'
                   : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-200/90 hover:border-emerald-300'
-              }`}
+                }`}
               title="Filtruj i pokaż tylko alerty, dla których Twoja jednostka posiada zasoby w magazynie"
             >
               <Sparkles className={`h-4 w-4 ${onlyMyOrgCanHelp ? 'text-white' : 'text-emerald-600'}`} />
               <span>Możemy pomóc (Zasoby w magazynie)</span>
               <span
-                className={`px-2 py-0.5 rounded-lg text-[11px] font-black ${
-                  onlyMyOrgCanHelp
+                className={`px-2 py-0.5 rounded-lg text-[11px] font-black ${onlyMyOrgCanHelp
                     ? 'bg-white text-emerald-900'
                     : 'bg-emerald-200 text-emerald-950'
-                }`}
+                  }`}
               >
                 {myOrgCanHelpCount}
               </span>
@@ -805,33 +802,30 @@ export const OperationalAlertsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setResourceFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  resourceFilter === 'all'
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${resourceFilter === 'all'
                     ? 'bg-white text-indigo-700 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
               >
                 Wszystkie statusy
               </button>
               <button
                 type="button"
                 onClick={() => setResourceFilter('needs_help')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
-                  resourceFilter === 'needs_help'
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${resourceFilter === 'needs_help'
                     ? 'bg-white text-amber-700 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
               >
                 <span>🚨 Wymagają wsparcia</span>
               </button>
               <button
                 type="button"
                 onClick={() => setResourceFilter('fulfilled')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
-                  resourceFilter === 'fulfilled'
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${resourceFilter === 'fulfilled'
                     ? 'bg-white text-emerald-700 shadow-xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
               >
                 <span>✅ Pokryte 100%</span>
               </button>
@@ -844,16 +838,16 @@ export const OperationalAlertsPage: React.FC = () => {
               selectedVoivodeship !== 'all' ||
               resourceFilter !== 'all' ||
               onlyMyOrgCanHelp) && (
-              <button
-                type="button"
-                onClick={resetAllFilters}
-                className="flex items-center gap-1 text-slate-500 hover:text-red-600 font-bold text-xs cursor-pointer px-2 py-1 transition"
-                title="Wyczyść wszystkie nałożone filtry"
-              >
-                <X className="h-3.5 w-3.5" />
-                <span>Wyczyść filtry</span>
-              </button>
-            )}
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="flex items-center gap-1 text-slate-500 hover:text-red-600 font-bold text-xs cursor-pointer px-2 py-1 transition"
+                  title="Wyczyść wszystkie nałożone filtry"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span>Wyczyść filtry</span>
+                </button>
+              )}
           </div>
         </div>
 
@@ -864,11 +858,10 @@ export const OperationalAlertsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('split')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                viewMode === 'split'
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${viewMode === 'split'
                   ? 'bg-white text-indigo-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               <Columns className="h-3.5 w-3.5" />
               <span>Widok Podzielony</span>
@@ -876,11 +869,10 @@ export const OperationalAlertsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                viewMode === 'map'
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${viewMode === 'map'
                   ? 'bg-white text-indigo-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               <MapIcon className="h-3.5 w-3.5" />
               <span>Pełna Mapa</span>
@@ -888,11 +880,10 @@ export const OperationalAlertsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                viewMode === 'grid'
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${viewMode === 'grid'
                   ? 'bg-white text-indigo-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               <span>Tylko Karty ({filteredAlerts.length})</span>
@@ -1016,11 +1007,10 @@ export const OperationalAlertsPage: React.FC = () => {
                       <article
                         key={alert.id}
                         id={`alert-card-${alert.id}`}
-                        className={`group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border transition duration-200 space-y-5 ${
-                          matchingOrgDemands.length > 0
+                        className={`group relative flex flex-col justify-between rounded-3xl bg-white p-6 shadow-xs border transition duration-200 space-y-5 ${matchingOrgDemands.length > 0
                             ? 'border-emerald-300/90 shadow-emerald-500/5 ring-1 ring-emerald-400/30'
                             : 'border-slate-200/80 hover:border-indigo-300 hover:shadow-md'
-                        }`}
+                          }`}
                       >
                         <div className="space-y-4">
                           {/* Górna belka karty: Krytyczność, Kategoria & Lokalizacja */}
@@ -1132,11 +1122,10 @@ export const OperationalAlertsPage: React.FC = () => {
                                   return (
                                     <div
                                       key={nr.id}
-                                      className={`rounded-xl bg-white p-3 border shadow-2xs space-y-2.5 ${
-                                        hasInOrg && !isFulfilled
+                                      className={`rounded-xl bg-white p-3 border shadow-2xs space-y-2.5 ${hasInOrg && !isFulfilled
                                           ? 'border-emerald-300 ring-1 ring-emerald-200/60'
                                           : 'border-amber-200/70'
-                                      }`}
+                                        }`}
                                     >
                                       <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div className="flex flex-wrap items-center gap-1.5">
@@ -1194,13 +1183,12 @@ export const OperationalAlertsPage: React.FC = () => {
 
                                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/60">
                                           <div
-                                            className={`h-2 rounded-full transition-all duration-300 ${
-                                              pct >= 100
+                                            className={`h-2 rounded-full transition-all duration-300 ${pct >= 100
                                                 ? 'bg-emerald-500'
                                                 : pct > 0
-                                                ? 'bg-amber-500'
-                                                : 'bg-slate-300'
-                                            }`}
+                                                  ? 'bg-amber-500'
+                                                  : 'bg-slate-300'
+                                              }`}
                                             style={{ width: `${pct}%` }}
                                           />
                                         </div>
@@ -1405,7 +1393,7 @@ export const OperationalAlertsPage: React.FC = () => {
                   {Math.max(
                     0,
                     allocatingResource.quantityNeeded -
-                      (allocatingResource.quantityAllocated || 0)
+                    (allocatingResource.quantityAllocated || 0)
                   )}{' '}
                   {allocatingResource.unit})
                 </span>
@@ -1422,7 +1410,7 @@ export const OperationalAlertsPage: React.FC = () => {
               const remainingNeeded = Math.max(
                 0,
                 allocatingResource.quantityNeeded -
-                  (allocatingResource.quantityAllocated || 0)
+                (allocatingResource.quantityAllocated || 0)
               );
               const maxAllowed = selectedOrgResource
                 ? Math.min(remainingNeeded, selectedOrgResource.quantity)

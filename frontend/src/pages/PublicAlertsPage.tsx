@@ -78,7 +78,7 @@ export const PublicAlertsPage: React.FC = () => {
       console.error('Błąd podczas pobierania publicznych alertów:', err);
       setError(
         err.response?.data?.message ||
-          'Nie udało się połączyć z serwerem komunikatów. Sprawdź połączenie sieciowe.'
+        'Nie udało się połączyć z serwerem komunikatów. Sprawdź połączenie sieciowe.'
       );
     } finally {
       setIsLoading(false);
@@ -375,11 +375,10 @@ export const PublicAlertsPage: React.FC = () => {
               value={selectedCountyOrCity}
               disabled={selectedVoivodeship === 'all'}
               onChange={(e) => setSelectedCountyOrCity(e.target.value)}
-              className={`w-full rounded-xl border py-2.5 px-3 text-xs sm:text-sm font-semibold transition focus:outline-none ${
-                selectedVoivodeship === 'all'
+              className={`w-full rounded-xl border py-2.5 px-3 text-xs sm:text-sm font-semibold transition focus:outline-none ${selectedVoivodeship === 'all'
                   ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                   : 'bg-slate-50 border-slate-200/80 text-slate-700 focus:bg-white focus:border-indigo-500 cursor-pointer'
-              }`}
+                }`}
             >
               {selectedVoivodeship === 'all' ? (
                 <option value="all">Najpierw wybierz województwo</option>
@@ -405,11 +404,10 @@ export const PublicAlertsPage: React.FC = () => {
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
             <button
               onClick={() => setViewMode('split')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'split'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'split'
                   ? 'bg-white text-indigo-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               <Columns className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Podzielony</span>
@@ -417,11 +415,10 @@ export const PublicAlertsPage: React.FC = () => {
 
             <button
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'map'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'map'
                   ? 'bg-white text-indigo-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               <MapIcon className="h-3.5 w-3.5" />
               <span>Mapa</span>
@@ -429,11 +426,10 @@ export const PublicAlertsPage: React.FC = () => {
 
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                viewMode === 'grid'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${viewMode === 'grid'
                   ? 'bg-white text-indigo-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               <span>Karty ({filteredAlerts.length})</span>
@@ -525,9 +521,9 @@ export const PublicAlertsPage: React.FC = () => {
                 <span className="text-xs text-slate-500">
                   Sortowanie: <strong className="text-slate-700">{
                     sortBy === 'date-desc' ? 'Najnowsze' :
-                    sortBy === 'date-asc' ? 'Najstarsze' :
-                    sortBy === 'severity-desc' ? 'Krytyczność zdarzenia (najwyższa)' :
-                    'Krytyczność zdarzenia (najniższa)'
+                      sortBy === 'date-asc' ? 'Najstarsze' :
+                        sortBy === 'severity-desc' ? 'Krytyczność zdarzenia (najwyższa)' :
+                          'Krytyczność zdarzenia (najniższa)'
                   }</strong>
                 </span>
               </div>

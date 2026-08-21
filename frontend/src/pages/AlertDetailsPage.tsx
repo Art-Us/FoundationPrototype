@@ -295,7 +295,7 @@ export const AlertDetailsPage: React.FC = () => {
         api
           .get('/resources/my-organization')
           .then((r) => setOrgResources(r.data.resources || []))
-          .catch(() => {});
+          .catch(() => { });
 
         setAllocatingResource(null);
       }
@@ -424,11 +424,10 @@ export const AlertDetailsPage: React.FC = () => {
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce-short">
           <div
-            className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border text-sm font-semibold text-white ${
-              toast.type === 'success'
+            className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border text-sm font-semibold text-white ${toast.type === 'success'
                 ? 'bg-emerald-600 border-emerald-500 shadow-emerald-600/30'
                 : 'bg-red-600 border-red-500 shadow-red-600/30'
-            }`}
+              }`}
           >
             {toast.type === 'success' ? (
               <CheckCircle2 className="h-5 w-5 shrink-0" />
@@ -476,7 +475,7 @@ export const AlertDetailsPage: React.FC = () => {
                   {Math.max(
                     0,
                     allocatingResource.quantityNeeded -
-                      (allocatingResource.quantityAllocated || 0)
+                    (allocatingResource.quantityAllocated || 0)
                   )}{' '}
                   {allocatingResource.unit})
                 </span>
@@ -493,7 +492,7 @@ export const AlertDetailsPage: React.FC = () => {
               const remainingNeeded = Math.max(
                 0,
                 allocatingResource.quantityNeeded -
-                  (allocatingResource.quantityAllocated || 0)
+                (allocatingResource.quantityAllocated || 0)
               );
               const maxAllowed = selectedOrgResource
                 ? Math.min(remainingNeeded, selectedOrgResource.quantity)
@@ -617,7 +616,7 @@ export const AlertDetailsPage: React.FC = () => {
                               Math.round(
                                 (((allocatingResource.quantityAllocated || 0) + allocateQuantity) /
                                   allocatingResource.quantityNeeded) *
-                                  100
+                                100
                               )
                             )}
                             %)
@@ -700,11 +699,10 @@ export const AlertDetailsPage: React.FC = () => {
           )}
 
           <span
-            className={`px-3 py-1 rounded-xl text-xs font-bold uppercase tracking-wider border ${
-              alert.isActive
+            className={`px-3 py-1 rounded-xl text-xs font-bold uppercase tracking-wider border ${alert.isActive
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 : 'bg-slate-100 text-slate-600 border-slate-200'
-            }`}
+              }`}
           >
             {alert.isActive ? '● Komunikat Aktywny' : 'Odwołany / Archiwum'}
           </span>
@@ -867,13 +865,12 @@ export const AlertDetailsPage: React.FC = () => {
 
                         <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                           <div
-                            className={`h-2 rounded-full transition-all duration-300 ${
-                              pct >= 100
+                            className={`h-2 rounded-full transition-all duration-300 ${pct >= 100
                                 ? 'bg-emerald-500'
                                 : pct > 0
-                                ? 'bg-amber-500'
-                                : 'bg-slate-300'
-                            }`}
+                                  ? 'bg-amber-500'
+                                  : 'bg-slate-300'
+                              }`}
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -1106,22 +1103,20 @@ export const AlertDetailsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => toggleChat(post.id)}
-                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs active:scale-95 ${
-                              isChatOpen
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs active:scale-95 ${isChatOpen
                                 ? 'bg-indigo-600 text-white shadow-indigo-600/25'
                                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900'
-                            }`}
+                              }`}
                           >
                             <MessageCircle className="h-4 w-4" />
                             <span>
                               {isChatOpen
                                 ? 'Zwiń czat dyskusyjny'
                                 : messages.length === 0
-                                ? 'Otwórz czat (0 wiadomości)'
-                                : `Pokaż czat (${messages.length} ${
-                                    messages.length === 1
-                                      ? 'wiadomość'
-                                      : messages.length >= 2 && messages.length <= 4
+                                  ? 'Otwórz czat (0 wiadomości)'
+                                  : `Pokaż czat (${messages.length} ${messages.length === 1
+                                    ? 'wiadomość'
+                                    : messages.length >= 2 && messages.length <= 4
                                       ? 'wiadomości'
                                       : 'wiadomości'
                                   })`}

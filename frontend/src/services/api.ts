@@ -63,14 +63,9 @@ export const api = {
         filtered = filtered.filter((a) => a.isActive);
       } else if (scope === 'archived') {
         filtered = filtered.filter((a) => !a.isActive);
-      }
-
-      // Jeśli koordynator ma przypisaną gminę i w niej są alerty, priorytetyzujemy
-      if (currentUser?.organization?.municipalityId) {
-        const muniId = currentUser.organization.municipalityId;
-        const matchingMuni = filtered.filter((a) => a.municipalityId === muniId);
-        if (matchingMuni.length > 0) {
-          filtered = matchingMuni;
+      } else if (scope === 'my_municipality') {
+        if (currentUser?.organization?.municipalityId) {
+          filtered = filtered.filter((a) => a.municipalityId === currentUser.organization?.municipalityId);
         }
       }
 

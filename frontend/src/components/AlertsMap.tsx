@@ -475,11 +475,10 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
             <button
               type="button"
               onClick={() => handleModeChange('category')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
-                activeMode === 'category'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${activeMode === 'category'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                }`}
               title="Widok według kategorii zdarzenia"
             >
               <Layers className="h-3.5 w-3.5" />
@@ -491,11 +490,10 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
             <button
               type="button"
               onClick={() => handleModeChange('severity')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
-                activeMode === 'severity'
-                  ? 'bg-red-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${activeMode === 'severity'
+                ? 'bg-red-600 text-white shadow-md'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                }`}
               title="Widok według krytyczności zdarzenia (🔴 Czerwony / 🟠 Pomarańczowy / 🟡 Żółty / 🟢 Zielony)"
             >
               <Flame className="h-3.5 w-3.5" />
@@ -507,11 +505,10 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
             <button
               type="button"
               onClick={() => handleModeChange('resource_urgency')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${
-                activeMode === 'resource_urgency'
-                  ? 'bg-amber-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold transition text-xs cursor-pointer ${activeMode === 'resource_urgency'
+                ? 'bg-amber-600 text-white shadow-md'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                }`}
               title="Widok według posiadania krytycznych żądań zasobowych"
             >
               <Boxes className="h-3.5 w-3.5" />
@@ -638,15 +635,14 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
                             >
                               <div className="flex items-center gap-1 truncate pr-1">
                                 <span
-                                  className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                                    nr.urgency === 'krytyczny'
-                                      ? 'bg-red-500'
-                                      : nr.urgency === 'wysoki'
+                                  className={`h-1.5 w-1.5 rounded-full shrink-0 ${nr.urgency === 'krytyczny'
+                                    ? 'bg-red-500'
+                                    : nr.urgency === 'wysoki'
                                       ? 'bg-orange-500'
                                       : nr.urgency === 'średni'
-                                      ? 'bg-amber-500'
-                                      : 'bg-emerald-500'
-                                  }`}
+                                        ? 'bg-amber-500'
+                                        : 'bg-emerald-500'
+                                    }`}
                                 ></span>
                                 <span className="font-semibold text-slate-800 truncate">
                                   {nr.name}

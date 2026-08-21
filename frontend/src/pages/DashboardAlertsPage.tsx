@@ -60,11 +60,11 @@ export const SEVERITY_OPTIONS: {
   dotClass: string;
   textClass: string;
 }[] = [
-  { value: 'krytyczny', label: '🚨 Krytyczny (Czerwony)', dotClass: 'bg-red-500', textClass: 'text-red-700' },
-  { value: 'wysoki', label: '🟠 Wysoki (Pomarańczowy)', dotClass: 'bg-orange-500', textClass: 'text-orange-700' },
-  { value: 'średni', label: '🟡 Średni (Żółty)', dotClass: 'bg-amber-500', textClass: 'text-amber-700' },
-  { value: 'niski', label: '🟢 Niski (Zielony)', dotClass: 'bg-emerald-500', textClass: 'text-emerald-700' },
-];
+    { value: 'krytyczny', label: '🚨 Krytyczny (Czerwony)', dotClass: 'bg-red-500', textClass: 'text-red-700' },
+    { value: 'wysoki', label: '🟠 Wysoki (Pomarańczowy)', dotClass: 'bg-orange-500', textClass: 'text-orange-700' },
+    { value: 'średni', label: '🟡 Średni (Żółty)', dotClass: 'bg-amber-500', textClass: 'text-amber-700' },
+    { value: 'niski', label: '🟢 Niski (Zielony)', dotClass: 'bg-emerald-500', textClass: 'text-emerald-700' },
+  ];
 
 export interface NeededResourceDraft {
   id: string;
@@ -161,7 +161,7 @@ export const DashboardAlertsPage: React.FC = () => {
 
   // Filtry, wyszukiwanie i sortowanie dla ARCHIWUM komunikatów
   const [archiveSearchQuery, setArchiveSearchQuery] = useState('');
-  const [archiveTimeframe, setArchiveTimeframe] = useState<AlertTimeframe>('24h');
+  const [archiveTimeframe, setArchiveTimeframe] = useState<AlertTimeframe>('wszystkie');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [archiveCategoryFilter, setArchiveCategoryFilter] = useState<string>('all');
@@ -282,10 +282,10 @@ export const DashboardAlertsPage: React.FC = () => {
             (nr.resourceType === 'woda'
               ? 'Woda / Prowiant'
               : nr.resourceType === 'sprzet'
-              ? 'Sprzęt ratunkowy'
-              : nr.resourceType === 'ludzie'
-              ? 'Ratownicy / Wolontariusze'
-              : 'Zasób ratunkowy'),
+                ? 'Sprzęt ratunkowy'
+                : nr.resourceType === 'ludzie'
+                  ? 'Ratownicy / Wolontariusze'
+                  : 'Zasób ratunkowy'),
           quantityNeeded: Math.max(1, Number(nr.quantityNeeded) || 1),
           quantityAllocated: 0,
           unit: (nr.unit || 'szt.').trim(),
@@ -770,11 +770,10 @@ export const DashboardAlertsPage: React.FC = () => {
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce-short">
           <div
-            className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border text-sm font-semibold text-white ${
-              toast.type === 'success'
+            className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl backdrop-blur-xl border text-sm font-semibold text-white ${toast.type === 'success'
                 ? 'bg-emerald-600 border-emerald-500 shadow-emerald-600/30'
                 : 'bg-red-600 border-red-500 shadow-red-600/30'
-            }`}
+              }`}
           >
             {toast.type === 'success' ? (
               <Check className="h-5 w-5 shrink-0" />
@@ -819,11 +818,10 @@ export const DashboardAlertsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setScope('all')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                scope === 'all'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${scope === 'all'
                   ? 'bg-white text-indigo-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
               title="Wyświetlaj komunikaty ze wszystkich gmin w Polsce"
             >
               <Globe className="h-3.5 w-3.5 text-indigo-600" />
@@ -832,11 +830,10 @@ export const DashboardAlertsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setScope('my_municipality')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                scope === 'my_municipality'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${scope === 'my_municipality'
                   ? 'bg-white text-indigo-700 shadow-xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
-              }`}
+                }`}
               title="Filtruj wyłącznie do komunikatów Twojej jednostki samorządowej"
             >
               <Building className="h-3.5 w-3.5 text-slate-500" />
@@ -846,11 +843,10 @@ export const DashboardAlertsPage: React.FC = () => {
 
           <button
             onClick={() => setShowMap(!showMap)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs cursor-pointer ${
-              showMap
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs cursor-pointer ${showMap
                 ? 'bg-indigo-600 border-indigo-600 text-white'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
+              }`}
           >
             <MapIcon className="h-4 w-4" />
             <span>{showMap ? 'Ukryj Mapę' : 'Pokaż Mapę'}</span>
@@ -1275,11 +1271,10 @@ export const DashboardAlertsPage: React.FC = () => {
                   key={tf.key}
                   type="button"
                   onClick={() => setActiveTimeframe(tf.key as AlertTimeframe)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                    activeTimeframe === tf.key
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${activeTimeframe === tf.key
                       ? 'bg-red-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                  }`}
+                    }`}
                 >
                   {tf.label}
                 </button>
@@ -1500,13 +1495,12 @@ export const DashboardAlertsPage: React.FC = () => {
                                 </div>
                                 <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
                                   <div
-                                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                                      pct >= 100
+                                    className={`h-1.5 rounded-full transition-all duration-300 ${pct >= 100
                                         ? 'bg-emerald-500'
                                         : pct > 0
-                                        ? 'bg-amber-500'
-                                        : 'bg-slate-300'
-                                    }`}
+                                          ? 'bg-amber-500'
+                                          : 'bg-slate-300'
+                                      }`}
                                     style={{ width: `${pct}%` }}
                                   />
                                 </div>
@@ -1653,11 +1647,10 @@ export const DashboardAlertsPage: React.FC = () => {
                   key={tf.key}
                   type="button"
                   onClick={() => setArchiveTimeframe(tf.key as ArchiveTimeframe)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                    archiveTimeframe === tf.key
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${archiveTimeframe === tf.key
                       ? 'bg-indigo-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                  }`}
+                    }`}
                 >
                   {tf.label}
                 </button>
