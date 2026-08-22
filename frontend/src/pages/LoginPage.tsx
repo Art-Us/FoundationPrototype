@@ -49,16 +49,16 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-65px)] items-center justify-center p-4 sm:p-6 lg:p-8 bg-[#f4f7fb]">
+    <div className="flex min-h-[calc(100vh-65px)] items-center justify-center p-4 sm:p-6 lg:p-8 bg-[#f4f7fb] dark:bg-slate-950 transition-colors">
       <div className="w-full max-w-md space-y-6">
         {/* Karta formularza */}
-        <div className="rounded-3xl bg-white p-8 shadow-sm border border-slate-200/80">
+        <div className="rounded-3xl bg-white dark:bg-slate-900 p-8 shadow-sm border border-slate-200/80 dark:border-slate-800 transition-colors">
           <div className="text-center mb-8">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 mb-4 shadow-xs">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mb-4 shadow-xs">
               <ShieldAlert className="h-7 w-7" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Logowanie do systemu</h1>
-            <p className="text-xs text-slate-500 mt-1">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Logowanie do systemu</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Wprowadź swoje dane, aby uzyskać dostęp do panelu operacyjnego Fundacji Q
             </p>
           </div>

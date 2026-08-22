@@ -297,35 +297,35 @@ export const getSeverityBadgeInfo = (severity?: string) => {
     case 'krytyczny':
       return {
         label: 'Krytyczny',
-        badgeClass: 'bg-red-100 text-red-800 border-red-200',
+        badgeClass: 'bg-red-100 dark:bg-red-950/70 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800',
         dotClass: 'bg-red-500',
         color: '#ef4444',
       };
     case 'wysoki':
       return {
         label: 'Wysoki',
-        badgeClass: 'bg-orange-100 text-orange-800 border-orange-200',
+        badgeClass: 'bg-orange-100 dark:bg-orange-950/70 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-800',
         dotClass: 'bg-orange-500',
         color: '#f97316',
       };
     case 'średni':
       return {
         label: 'Średni',
-        badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+        badgeClass: 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800',
         dotClass: 'bg-amber-500',
         color: '#eab308',
       };
     case 'niski':
       return {
         label: 'Niski',
-        badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        badgeClass: 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
         dotClass: 'bg-emerald-500',
         color: '#22c55e',
       };
     default:
       return {
         label: 'Wysoki',
-        badgeClass: 'bg-orange-100 text-orange-800 border-orange-200',
+        badgeClass: 'bg-orange-100 dark:bg-orange-950/70 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-800',
         dotClass: 'bg-orange-500',
         color: '#f97316',
       };
