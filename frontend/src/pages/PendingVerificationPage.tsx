@@ -32,16 +32,16 @@ export const PendingVerificationPage: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-65px)] items-center justify-center p-4 sm:p-6 lg:p-8 bg-[#f4f7fb]">
-      <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-sm border border-slate-200/80 text-center space-y-6">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 shadow-xs">
+    <div className="flex min-h-[calc(100vh-65px)] items-center justify-center p-4 sm:p-6 lg:p-8 bg-[#f4f7fb] dark:bg-slate-950 transition-colors">
+      <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 p-8 shadow-sm border border-slate-200/80 dark:border-slate-800 text-center space-y-6 transition-colors">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 shadow-xs">
           <Clock className="h-8 w-8 animate-pulse" />
         </div>
 
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Konto oczekuje na weryfikację</h1>
-          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-            Witaj <span className="font-bold text-slate-800">{user?.firstName} {user?.lastName}</span>! Ze względów bezpieczeństwa koordynacji kryzysowej, nowe konta muszą zostać zweryfikowane przez Administratora.
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Konto oczekuje na weryfikację</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+            Witaj <span className="font-bold text-slate-800 dark:text-slate-200">{user?.firstName} {user?.lastName}</span>! Ze względów bezpieczeństwa koordynacji kryzysowej, nowe konta muszą zostać zweryfikowane przez Administratora.
           </p>
         </div>
 
