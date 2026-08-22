@@ -445,32 +445,32 @@ export const AlertDetailsPage: React.FC = () => {
 
       {/* Modal Alokacji Zasobów */}
       {allocatingResource && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-5 animate-scale-up">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-indigo-600 font-bold">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-5 animate-scale-up">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
                 <PackageCheck className="h-5 w-5" />
-                <h3 className="text-base font-extrabold text-slate-900">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                   Dyspozycja i Przydział Zasobów
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setAllocatingResource(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2 text-xs">
-              <div className="flex items-center justify-between text-slate-500">
+            <div className="bg-slate-50 dark:bg-slate-800/80 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-700 space-y-2 text-xs">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                 <span className="font-semibold">Potrzebny zasób:</span>
-                <span className="font-bold text-indigo-700">{allocatingResource.name}</span>
+                <span className="font-bold text-indigo-700 dark:text-indigo-300">{allocatingResource.name}</span>
               </div>
-              <div className="flex items-center justify-between text-slate-500">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                 <span className="font-semibold">Stan realizacji:</span>
-                <span className="font-mono font-bold text-slate-800">
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                   {allocatingResource.quantityAllocated || 0} / {allocatingResource.quantityNeeded}{' '}
                   {allocatingResource.unit} (Brakuje:{' '}
                   {Math.max(
@@ -503,29 +503,29 @@ export const AlertDetailsPage: React.FC = () => {
               return (
                 <form onSubmit={handleSubmitAllocation} className="space-y-4">
                   {/* Informacja o wymaganej kategorii */}
-                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 text-xs text-slate-700 flex items-center justify-between">
-                    <span className="font-semibold text-slate-500">Wymagana kategoria zasobu:</span>
-                    <span className="font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                  <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200/90 dark:border-slate-700 rounded-2xl p-3 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <span className="font-semibold text-slate-500 dark:text-slate-400">Wymagana kategoria zasobu:</span>
+                    <span className="font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800">
                       {allocatingResource.resourceType}
                     </span>
                   </div>
 
                   {/* Wybór zasobu z magazynu organizacji */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                       <span>Zasób z magazynu Twojej jednostki:</span>
-                      <span className="text-[10px] text-indigo-600 font-semibold lowercase">
+                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold lowercase">
                         {user?.organization?.name || 'Twoja organizacja'}
                       </span>
                     </label>
 
                     {hasNoMatching ? (
-                      <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-800 space-y-1">
+                      <div className="p-3.5 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-2xl text-xs text-red-800 dark:text-red-300 space-y-1">
                         <p className="font-bold flex items-center gap-1.5">
-                          <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                          <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
                           <span>Brak dostępnych zasobów w kategorii „{allocatingResource.resourceType.toUpperCase()}”</span>
                         </p>
-                        <p className="text-[11px] text-red-700">
+                        <p className="text-[11px] text-red-700 dark:text-red-300">
                           Twoja jednostka nie posiada w magazynie wolnych zasobów z kategorii <strong>{allocatingResource.resourceType}</strong>. Nie można przydzielić zasobów z innej kategorii.
                         </p>
                       </div>
@@ -533,7 +533,7 @@ export const AlertDetailsPage: React.FC = () => {
                       <select
                         value={selectedOrgResourceId}
                         onChange={(e) => handleSelectOrgResource(e.target.value)}
-                        className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs font-semibold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                        className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-2.5 px-3 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 focus:outline-none"
                       >
                         {matchingCategoryResources.map((res) => (
                           <option key={res.id} value={res.id}>
@@ -549,16 +549,16 @@ export const AlertDetailsPage: React.FC = () => {
                       {/* Ilość do przekazania z szybkimi przyciskami */}
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
-                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                             Ilość do przekazania ({allocatingResource.unit}):
                           </label>
-                          <span className="text-[11px] text-slate-500 font-medium">
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                             Brakuje:{' '}
-                            <strong className="text-amber-800">
+                            <strong className="text-amber-800 dark:text-amber-400">
                               {remainingNeeded} {allocatingResource.unit}
                             </strong>
                             {selectedOrgResource && (
-                              <span className="ml-1.5 text-slate-400">
+                              <span className="ml-1.5 text-slate-400 dark:text-slate-500">
                                 (W magazynie: <strong>{selectedOrgResource.quantity}</strong>)
                               </span>
                             )}
@@ -575,7 +575,7 @@ export const AlertDetailsPage: React.FC = () => {
                             const val = parseInt(e.target.value) || 0;
                             setAllocateQuantity(Math.min(maxAllowed, Math.max(1, val)));
                           }}
-                          className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-sm font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                          className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-2.5 px-3.5 text-sm font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 focus:outline-none"
                         />
 
                         {/* Szybkie przyciski ilości */}
@@ -587,7 +587,7 @@ export const AlertDetailsPage: React.FC = () => {
                                 key={num}
                                 type="button"
                                 onClick={() => setAllocateQuantity(num)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition"
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold transition"
                               >
                                 {num} {allocatingResource.unit}
                               </button>
@@ -595,7 +595,7 @@ export const AlertDetailsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setAllocateQuantity(maxAllowed)}
-                            className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200/60 transition"
+                            className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold border border-indigo-200/60 dark:border-indigo-800 transition"
                           >
                             Maks. dozwolony przydział ({maxAllowed})
                           </button>
@@ -603,10 +603,10 @@ export const AlertDetailsPage: React.FC = () => {
                       </div>
 
                       {/* Podgląd stanu na żywo */}
-                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 text-[11px] space-y-1 text-slate-600">
+                      <div className="bg-slate-50 dark:bg-slate-800/80 rounded-xl p-3 border border-slate-200/80 dark:border-slate-700 text-[11px] space-y-1 text-slate-600 dark:text-slate-300">
                         <div className="flex items-center justify-between">
                           <span>Nowy stan realizacji alertu:</span>
-                          <strong className="text-emerald-700 font-mono">
+                          <strong className="text-emerald-700 dark:text-emerald-400 font-mono">
                             {Math.min(
                               allocatingResource.quantityNeeded,
                               (allocatingResource.quantityAllocated || 0) + allocateQuantity
@@ -627,7 +627,7 @@ export const AlertDetailsPage: React.FC = () => {
 
                       {/* Notatka operacyjna */}
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                           Notatka dyspozytorska / Transport (Opcjonalnie):
                         </label>
                         <input
@@ -635,7 +635,7 @@ export const AlertDetailsPage: React.FC = () => {
                           value={allocationNote}
                           onChange={(e) => setAllocationNote(e.target.value)}
                           placeholder="np. Wysłano 1 wóz kwatermistrzowski z remizy w Kłodzku"
-                          className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                          className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-2 px-3 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 focus:outline-none"
                         />
                       </div>
                     </>
@@ -645,7 +645,7 @@ export const AlertDetailsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setAllocatingResource(null)}
-                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
                     >
                       Anuluj
                     </button>
@@ -679,7 +679,7 @@ export const AlertDetailsPage: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/dashboard/operational')}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 shadow-2xs transition self-start cursor-pointer"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-800 shadow-2xs transition self-start cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Powrót do Dyspozytorni</span>
@@ -691,10 +691,10 @@ export const AlertDetailsPage: React.FC = () => {
               type="button"
               onClick={handleDeleteAlert}
               disabled={isDeletingAlert}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 shadow-2xs transition cursor-pointer active:scale-95 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 hover:text-rose-800 border border-rose-200 dark:border-rose-800 shadow-2xs transition cursor-pointer active:scale-95 disabled:opacity-50"
               title="Całkowicie usuń ten alert z systemu (Tylko Admin). Pełna kopia zostanie zapisana w logach."
             >
-              <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+              <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
               <span>{isDeletingAlert ? 'Usuwanie...' : 'Usuń trwale (Admin)'}</span>
             </button>
           )}
@@ -702,8 +702,8 @@ export const AlertDetailsPage: React.FC = () => {
           <span
             className={`px-3 py-1 rounded-xl text-xs font-bold uppercase tracking-wider border ${
               alert.isActive
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-slate-100 text-slate-600 border-slate-200'
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
             }`}
           >
             {alert.isActive ? '● Komunikat Aktywny' : 'Odwołany / Archiwum'}
@@ -715,8 +715,8 @@ export const AlertDetailsPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Lewa Kolumna: Dane alertu & Zapotrzebowanie */}
         <div className="lg:col-span-7 space-y-6">
-          <section className="rounded-3xl bg-white p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-5">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-5 transition-colors">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex flex-wrap items-center gap-1.5">
                 {/* Badge Krytyczności */}
                 {(() => {
@@ -732,22 +732,22 @@ export const AlertDetailsPage: React.FC = () => {
                 })()}
 
                 <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg} dark:bg-slate-800 dark:border-slate-700`}
                 >
                   {categoryBadge.icon}
                   <span>{alert.category}</span>
                 </span>
               </div>
 
-              <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 bg-slate-100 px-3 py-1 rounded-xl font-semibold border border-slate-200/60">
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-xl font-semibold border border-slate-200/60 dark:border-slate-700">
                 <MapPin className="h-3.5 w-3.5 text-red-500 shrink-0" />
                 <span>
                   {alert.locationName ? (
                     <>
                       <strong>{alert.locationName}</strong>
-                      {alert.county && <span className="text-slate-500 ml-1">({alert.county})</span>}
+                      {alert.county && <span className="text-slate-500 dark:text-slate-400 ml-1">({alert.county})</span>}
                       {alert.voivodeship && (
-                        <span className="text-slate-400 ml-1">woj. {alert.voivodeship}</span>
+                        <span className="text-slate-400 dark:text-slate-500 ml-1">woj. {alert.voivodeship}</span>
                       )}
                     </>
                   ) : (
@@ -759,36 +759,36 @@ export const AlertDetailsPage: React.FC = () => {
 
             <div className="space-y-2">
               {alert.title && (
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug">
                   {alert.title}
                 </h1>
               )}
               <div>
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <h2 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
                   Treść operacyjna komunikatu
                 </h2>
-                <p className="text-base sm:text-lg text-slate-800 font-semibold leading-relaxed">
+                <p className="text-base sm:text-lg text-slate-800 dark:text-slate-200 font-semibold leading-relaxed">
                   {alert.content}
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
-              <div className="flex items-center gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                <Building className="h-4 w-4 text-indigo-600 shrink-0" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+              <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                <Building className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">Organizacja</span>
-                  <span className="font-bold text-slate-800">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-semibold">Organizacja</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
                     {alert.author?.organization?.name || 'Służby Ratunkowe'}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                <User className="h-4 w-4 text-indigo-600 shrink-0" />
+              <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                <User className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">Autor komunikatu</span>
-                  <span className="font-bold text-slate-800">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 block font-semibold">Autor komunikatu</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
                     {alert.author
                       ? `${alert.author.firstName} ${alert.author.lastName} (${alert.author.role})`
                       : 'Koordynator'}
@@ -799,16 +799,16 @@ export const AlertDetailsPage: React.FC = () => {
           </section>
 
           {/* Sekcja Zapotrzebowania na Zasoby */}
-          <section className="rounded-3xl bg-white p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                <PackageCheck className="h-5 w-5 text-amber-600" />
+          <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 sm:p-7 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm">
+                <PackageCheck className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                 <span>Zapotrzebowanie na Zasoby ({needed.length})</span>
               </div>
             </div>
 
             {needed.length === 0 ? (
-              <div className="p-4 bg-slate-50 border border-slate-200/70 rounded-2xl text-xs text-slate-500 text-center">
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 rounded-2xl text-xs text-slate-500 dark:text-slate-400 text-center">
                 Brak zgłoszonego zapotrzebowania na sprzęt lub wsparcie w tym alercie.
               </div>
             ) : (
@@ -821,12 +821,12 @@ export const AlertDetailsPage: React.FC = () => {
                   return (
                     <div
                       key={nr.id}
-                      className="rounded-2xl bg-amber-50/60 p-4 border border-amber-200/80 space-y-2.5"
+                      className="rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 p-4 border border-amber-200/80 dark:border-amber-900/60 space-y-2.5"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <span className="font-bold text-sm text-slate-900">{nr.name}</span>
-                          <span className="text-xs text-slate-500 ml-2 font-mono">
+                          <span className="font-bold text-sm text-slate-900 dark:text-white">{nr.name}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 ml-2 font-mono">
                             Typ: {nr.resourceType.toUpperCase()}
                           </span>
                         </div>
@@ -845,34 +845,34 @@ export const AlertDetailsPage: React.FC = () => {
 
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-600 font-medium">
+                          <span className="text-slate-600 dark:text-slate-300 font-medium">
                             {isFulfilled ? (
-                              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                              <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
                                 <CheckCircle2 className="h-3.5 w-3.5 inline" />
                                 Zabezpieczone w 100%
                               </span>
                             ) : (
                               <span>
                                 Brakuje:{' '}
-                                <strong className="text-amber-900">
+                                <strong className="text-amber-900 dark:text-amber-300">
                                   {nr.quantityNeeded - allocCount} {nr.unit}
                                 </strong>
                               </span>
                             )}
                           </span>
-                          <span className="font-mono font-bold text-slate-800">
+                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                             {allocCount} / {nr.quantityNeeded} {nr.unit} ({pct}%)
                           </span>
                         </div>
 
-                        <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                           <div
                             className={`h-2 rounded-full transition-all duration-300 ${
                               pct >= 100
                                 ? 'bg-emerald-500'
                                 : pct > 0
                                 ? 'bg-amber-500'
-                                : 'bg-slate-300'
+                                : 'bg-slate-300 dark:bg-slate-600'
                             }`}
                             style={{ width: `${pct}%` }}
                           />
@@ -881,20 +881,20 @@ export const AlertDetailsPage: React.FC = () => {
 
                       {/* Lista dostawców */}
                       {nr.allocations && nr.allocations.length > 0 && (
-                        <div className="pt-2 border-t border-amber-200/60 text-[11px] space-y-1">
-                          <span className="font-bold text-slate-700 block">
+                        <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/60 text-[11px] space-y-1">
+                          <span className="font-bold text-slate-700 dark:text-slate-300 block">
                             Dostarczone jednostki ({nr.allocations.length}):
                           </span>
                           {nr.allocations.map((alloc) => (
                             <div
                               key={alloc.id}
-                              className="flex items-center justify-between bg-white/80 px-2.5 py-1 rounded-lg border border-amber-100"
+                              className="flex items-center justify-between bg-white/80 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-900/40"
                             >
                               <span>
-                                <strong>{alloc.organizationName}</strong> ({alloc.userName})
-                                {alloc.note && <span className="italic text-slate-500 ml-1">„{alloc.note}”</span>}
+                                <strong className="dark:text-slate-200">{alloc.organizationName}</strong> ({alloc.userName})
+                                {alloc.note && <span className="italic text-slate-500 dark:text-slate-400 ml-1">„{alloc.note}”</span>}
                               </span>
-                              <span className="font-mono font-bold text-emerald-700">
+                              <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
                                 +{alloc.quantity} {nr.unit} ({formatDate(alloc.allocatedAt)})
                               </span>
                             </div>
@@ -911,13 +911,13 @@ export const AlertDetailsPage: React.FC = () => {
 
         {/* Prawa Kolumna: Mapa Lokalizacji */}
         <div className="lg:col-span-5 space-y-6">
-          <section className="rounded-3xl bg-white p-5 border border-slate-200/80 shadow-xs space-y-3 sticky top-6">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+          <section className="rounded-3xl bg-white dark:bg-slate-900 p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3 sticky top-6 transition-colors">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
               <span className="flex items-center gap-1.5">
                 <MapPin className="h-4 w-4 text-red-500" />
                 <span>Punkt Zdarzenia na Mapie</span>
               </span>
-              <span className="font-mono text-slate-500">
+              <span className="font-mono text-slate-500 dark:text-slate-400">
                 {alert.lat && alert.lng
                   ? `${alert.lat.toFixed(4)}, ${alert.lng.toFixed(4)}`
                   : 'Współrzędne gminy'}
@@ -932,17 +932,17 @@ export const AlertDetailsPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* 3. SEKCJA WPISÓW I FORUM KOMUNIKATU (Dziennik zdarzenia & Czat wątkowy)  */}
       {/* ========================================================================= */}
-      <section className="rounded-3xl bg-white p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+      <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-6 transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
-            <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider mb-1">
+            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider mb-1">
               <MessagesSquare className="h-4 w-4" />
               <span>Dziennik Operacyjny & Forum Komunikatu</span>
             </div>
-            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Wpisy i Komunikacja Służb ({posts.length})
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Twórz wpisy z raportami z miejsca akcji i rozmawiaj z innymi jednostkami na dedykowanym czacie pod każdym wpisem.
             </p>
           </div>
@@ -961,17 +961,17 @@ export const AlertDetailsPage: React.FC = () => {
         {showNewPostForm && (
           <form
             onSubmit={handleCreatePost}
-            className="rounded-3xl bg-slate-50 p-5 sm:p-6 border border-indigo-200/70 space-y-4 animate-fade-in"
+            className="rounded-3xl bg-slate-50 dark:bg-slate-800/80 p-5 sm:p-6 border border-indigo-200/70 dark:border-indigo-800/80 space-y-4 animate-fade-in"
           >
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="h-4 w-4 text-indigo-600" />
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 <span>Nowy Wpis do Alertu</span>
               </h4>
               <button
                 type="button"
                 onClick={() => setShowNewPostForm(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
               >
                 Zamknij
               </button>
@@ -979,7 +979,7 @@ export const AlertDetailsPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                   Tytuł wpisu
                 </label>
                 <input
@@ -988,18 +988,18 @@ export const AlertDetailsPage: React.FC = () => {
                   value={postTitle}
                   onChange={(e) => setPostTitle(e.target.value)}
                   placeholder="np. Raport z przelewania wału przeciwpowodziowego, Odprawa o 14:00"
-                  className="w-full rounded-xl bg-white border border-slate-200 py-2.5 px-3.5 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-2.5 px-3.5 text-xs text-slate-900 dark:text-white focus:border-indigo-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                   Rodzaj wpisu
                 </label>
                 <select
                   value={postType}
                   onChange={(e) => setPostType(e.target.value as any)}
-                  className="w-full rounded-xl bg-white border border-slate-200 py-2.5 px-3 text-xs font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
+                  className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-2.5 px-3 text-xs font-semibold text-slate-900 dark:text-white focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="raport_terenowy">📋 Raport z terenu</option>
                   <option value="komunikat_sztabowy">🏢 Komunikat sztabowy</option>
@@ -1010,7 +1010,7 @@ export const AlertDetailsPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Treść wpisu / Szczegóły sytuacji
               </label>
               <textarea
@@ -1019,7 +1019,7 @@ export const AlertDetailsPage: React.FC = () => {
                 value={postContent}
                 onChange={(e) => setPostContent(e.target.value)}
                 placeholder="Opisz dokładnie sytuację, wyznaczone zadania, stan wałów, potrzebny sprzęt lub ustalenia sztabowe..."
-                className="w-full rounded-xl bg-white border border-slate-200 p-3 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none resize-none"
+                className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-indigo-500 focus:outline-none resize-none"
               ></textarea>
             </div>
 
@@ -1027,7 +1027,7 @@ export const AlertDetailsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowNewPostForm(false)}
-                className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold transition"
+                className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold transition"
               >
                 Anuluj
               </button>
@@ -1054,10 +1054,10 @@ export const AlertDetailsPage: React.FC = () => {
 
         {/* Lista wpisów operacyjnych */}
         {posts.length === 0 ? (
-          <div className="rounded-3xl bg-slate-50 p-10 text-center border border-dashed border-slate-200 space-y-3">
-            <MessageSquare className="h-8 w-8 text-slate-400 mx-auto" />
-            <h4 className="text-sm font-bold text-slate-800">Brak wpisów dla tego alertu</h4>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <div className="rounded-3xl bg-slate-50 dark:bg-slate-800/80 p-10 text-center border border-dashed border-slate-200 dark:border-slate-700 space-y-3">
+            <MessageSquare className="h-8 w-8 text-slate-400 dark:text-slate-500 mx-auto" />
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">Brak wpisów dla tego alertu</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
               Nikt jeszcze nie stworzył wpisu operacyjnego. Kliknij przycisk powyżej, aby dodać pierwszy raport z miejsca zdarzenia.
             </p>
           </div>
@@ -1070,30 +1070,30 @@ export const AlertDetailsPage: React.FC = () => {
               return (
                 <article
                   key={post.id}
-                  className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xs hover:border-slate-300 transition space-y-4"
+                  className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition space-y-4"
                 >
                   {/* Nagłówek posta */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
                     <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${typeBadge.bg}`}>
+                      <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold border ${typeBadge.bg} dark:bg-slate-800 dark:border-slate-700`}>
                         {typeBadge.label}
                       </span>
-                      <h4 className="text-sm sm:text-base font-bold text-slate-900">
+                      <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
                         {post.title}
                       </h4>
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <span className="font-semibold text-slate-700">{post.organizationName}</span>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">{post.organizationName}</span>
                       <span>•</span>
                       <span>{post.authorName}</span>
                       <span>•</span>
-                      <time className="text-slate-400 font-mono text-[11px]">{formatDate(post.createdAt)}</time>
+                      <time className="text-slate-400 dark:text-slate-500 font-mono text-[11px]">{formatDate(post.createdAt)}</time>
                     </div>
                   </div>
 
                   {/* Treść posta */}
-                  <p className="text-xs sm:text-sm text-slate-800 leading-relaxed font-medium whitespace-pre-line">
+                  <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium whitespace-pre-line">
                     {post.content}
                   </p>
 
@@ -1101,7 +1101,7 @@ export const AlertDetailsPage: React.FC = () => {
                   {(() => {
                     const isChatOpen = !!expandedChats[post.id];
                     return (
-                      <div className="space-y-3 pt-2 border-t border-slate-100">
+                      <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <button
                             type="button"
@@ -1109,7 +1109,7 @@ export const AlertDetailsPage: React.FC = () => {
                             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs active:scale-95 ${
                               isChatOpen
                                 ? 'bg-indigo-600 text-white shadow-indigo-600/25'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900'
+                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white'
                             }`}
                           >
                             <MessageCircle className="h-4 w-4" />
@@ -1129,14 +1129,14 @@ export const AlertDetailsPage: React.FC = () => {
                             {isChatOpen ? (
                               <ChevronUp className="h-3.5 w-3.5" />
                             ) : (
-                              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                              <ChevronDown className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
                             )}
                           </button>
 
                           {messages.length > 0 && !isChatOpen && (
-                            <span className="text-[11px] text-slate-500 font-medium">
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                               Ostatnia wiadomość:{' '}
-                              <strong className="text-slate-700 font-mono">
+                              <strong className="text-slate-700 dark:text-slate-300 font-mono">
                                 {formatDate(messages[messages.length - 1].createdAt)}
                               </strong>
                             </span>
@@ -1145,20 +1145,20 @@ export const AlertDetailsPage: React.FC = () => {
 
                         {/* Rozwijany Wątek Czatu pod wpisem */}
                         {isChatOpen && (
-                          <div className="rounded-2xl bg-slate-50 p-4 border border-indigo-200/60 space-y-3 animate-fade-in">
-                            <div className="flex items-center justify-between text-xs font-bold text-slate-700 border-b border-slate-200/60 pb-2">
-                              <span className="flex items-center gap-1.5 text-indigo-700">
-                                <MessageCircle className="h-4 w-4 text-indigo-600" />
+                          <div className="rounded-2xl bg-slate-50 dark:bg-slate-850 p-4 border border-indigo-200/60 dark:border-indigo-900/60 space-y-3 animate-fade-in">
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200/60 dark:border-slate-800 pb-2">
+                              <span className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400">
+                                <MessageCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                                 <span>Czat i Dyskusja Służb ({messages.length})</span>
                               </span>
-                              <span className="text-[10px] text-slate-400 font-normal">
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
                                 Wiadomości widoczne dla zalogowanych pracowników
                               </span>
                             </div>
 
                             {/* Wiadomości */}
                             {messages.length === 0 ? (
-                              <p className="text-xs text-slate-400 italic py-2 text-center bg-white rounded-xl border border-dashed border-slate-200">
+                              <p className="text-xs text-slate-400 dark:text-slate-500 italic py-2 text-center bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
                                 Brak wiadomości. Bądź pierwszy i napisz komentarz lub zapytanie.
                               </p>
                             ) : (
@@ -1166,20 +1166,20 @@ export const AlertDetailsPage: React.FC = () => {
                                 {messages.map((msg) => (
                                   <div
                                     key={msg.id}
-                                    className="bg-white p-3 rounded-xl border border-slate-200/70 shadow-2xs space-y-1"
+                                    className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200/70 dark:border-slate-700 shadow-2xs space-y-1"
                                   >
                                     <div className="flex items-center justify-between text-[11px]">
                                       <div className="flex items-center gap-1.5">
-                                        <span className="font-bold text-slate-800">{msg.authorName}</span>
-                                        <span className="text-slate-500 text-[10px]">
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">{msg.authorName}</span>
+                                        <span className="text-slate-500 dark:text-slate-400 text-[10px]">
                                           ({msg.organizationName || 'Służby'})
                                         </span>
                                       </div>
-                                      <span className="text-slate-400 font-mono text-[10px]">
+                                      <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">
                                         {formatDate(msg.createdAt)}
                                       </span>
                                     </div>
-                                    <p className="text-xs text-slate-800 font-medium leading-relaxed">{msg.content}</p>
+                                    <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-relaxed">{msg.content}</p>
                                   </div>
                                 ))}
                               </div>
@@ -1198,7 +1198,7 @@ export const AlertDetailsPage: React.FC = () => {
                                   setChatInputs((prev) => ({ ...prev, [post.id]: e.target.value }))
                                 }
                                 placeholder="Napisz wiadomość na czacie tego wpisu..."
-                                className="flex-1 rounded-xl bg-white border border-slate-200 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+                                className="flex-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-2 px-3 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
                               />
                               <button
                                 type="submit"
