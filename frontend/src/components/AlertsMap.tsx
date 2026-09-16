@@ -84,6 +84,8 @@ export interface AlertMapItem {
   severity?: 'krytyczny' | 'wysoki' | 'średni' | 'niski';
   isActive: boolean;
   locationName?: string | null;
+  street?: string | null;
+  houseNumber?: string | null;
   county?: string | null;
   voivodeship?: string | null;
   lat?: number | null;
@@ -337,6 +339,12 @@ const createCrisisIcon = (alert: AlertMapItem, mode: MapDisplayMode) => {
     iconAnchor: [18, 18],
     popupAnchor: [0, -18],
   });
+};
+
+// Formatuje linię "ul. Nazwa 12" na podstawie ulicy i numeru domu (pomija, gdy ulica nie jest znana)
+export const formatStreetLine = (alert: Pick<AlertMapItem, 'street' | 'houseNumber'>): string => {
+  if (!alert.street) return '';
+  return `ul. ${alert.street}${alert.houseNumber ? ` ${alert.houseNumber}` : ''}`;
 };
 
 // Helper badge krytyczności
@@ -671,6 +679,10 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
                       </span>
                     </span>
                   </div>
+
+                  {formatStreetLine(alert) && (
+                    <p className="text-[11px] text-slate-500 -mt-2">{formatStreetLine(alert)}</p>
+                  )}
 
                   {/* Nazwa/Tytuł i Treść komunikatu */}
                   <div className="space-y-1">

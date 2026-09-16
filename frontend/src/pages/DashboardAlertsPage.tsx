@@ -10,8 +10,9 @@ import {
   getAlertSeverityScore,
   getAlertResourceUrgencyScore,
   getHighestResourceUrgency,
+  formatStreetLine,
 } from '../components/AlertsMap';
-import { LocationPickerMap, LocationDetails } from '../components/LocationPickerMap';
+import { LocationPickerMap, LocationDetails, fetchForwardGeocode } from '../components/LocationPickerMap';
 import {
   AlertHistoryModal,
   calculateAlertDurations,
@@ -136,10 +137,53 @@ export const DashboardAlertsPage: React.FC = () => {
     setSeverity('wysoki');
   }, [mode]);
   const [locationName, setLocationName] = useState('');
+  const [street, setStreet] = useState('');
+  const [houseNumber, setHouseNumber] = useState('');
   const [county, setCounty] = useState('');
   const [voivodeship, setVoivodeship] = useState('');
   const [lat, setLat] = useState<string>('');
   const [lng, setLng] = useState<string>('');
+  const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
+
+  // Debounced wyszukiwanie punktu na mapie na podstawie ręcznie wpisanej ulicy/numeru domu (Forward Geocoding)
+  const addressGeocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerAddressGeocode = (nextStreet: string, nextHouseNumber: string) => {
+    if (addressGeocodeTimer.current) {
+      clearTimeout(addressGeocodeTimer.current);
+    }
+    if (!nextStreet.trim()) return;
+
+    addressGeocodeTimer.current = setTimeout(async () => {
+      setIsGeocodingAddress(true);
+      try {
+        const query = [
+          `${nextStreet.trim()} ${nextHouseNumber.trim()}`.trim(),
+          locationName.trim(),
+          voivodeship.trim(),
+          'Polska',
+        ]
+          .filter(Boolean)
+          .join(', ');
+        const result = await fetchForwardGeocode(query);
+        if (result) {
+          setLat(String(result.lat));
+          setLng(String(result.lng));
+          if (result.details.locationName && !locationName.trim()) {
+            setLocationName(result.details.locationName);
+          }
+          if (result.details.county && !county.trim()) {
+            setCounty(result.details.county);
+          }
+          if (result.details.voivodeship && !voivodeship.trim()) {
+            setVoivodeship(result.details.voivodeship);
+          }
+        }
+      } finally {
+        setIsGeocodingAddress(false);
+      }
+    }, 1000);
+  };
+
   const [neededResourcesDraft, setNeededResourcesDraft] = useState<NeededResourceDraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -220,8 +264,48 @@ export const DashboardAlertsPage: React.FC = () => {
   const [editCategory, setEditCategory] = useState('');
   const [editSeverity, setEditSeverity] = useState<'krytyczny' | 'wysoki' | 'średni' | 'niski'>('wysoki');
   const [editLocationName, setEditLocationName] = useState('');
+  const [editStreet, setEditStreet] = useState('');
+  const [editHouseNumber, setEditHouseNumber] = useState('');
   const [editCounty, setEditCounty] = useState('');
   const [editVoivodeship, setEditVoivodeship] = useState('');
+  const [isEditGeocodingAddress, setIsEditGeocodingAddress] = useState(false);
+  const editAddressGeocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerEditAddressGeocode = (nextStreet: string, nextHouseNumber: string) => {
+    if (editAddressGeocodeTimer.current) {
+      clearTimeout(editAddressGeocodeTimer.current);
+    }
+    if (!nextStreet.trim()) return;
+
+    editAddressGeocodeTimer.current = setTimeout(async () => {
+      setIsEditGeocodingAddress(true);
+      try {
+        const query = [
+          `${nextStreet.trim()} ${nextHouseNumber.trim()}`.trim(),
+          editLocationName.trim(),
+          editVoivodeship.trim(),
+          'Polska',
+        ]
+          .filter(Boolean)
+          .join(', ');
+        const result = await fetchForwardGeocode(query);
+        if (result) {
+          setEditLat(String(result.lat));
+          setEditLng(String(result.lng));
+          if (result.details.locationName && !editLocationName.trim()) {
+            setEditLocationName(result.details.locationName);
+          }
+          if (result.details.county && !editCounty.trim()) {
+            setEditCounty(result.details.county);
+          }
+          if (result.details.voivodeship && !editVoivodeship.trim()) {
+            setEditVoivodeship(result.details.voivodeship);
+          }
+        }
+      } finally {
+        setIsEditGeocodingAddress(false);
+      }
+    }, 1000);
+  };
   const [editLat, setEditLat] = useState<string>('');
   const [editLng, setEditLng] = useState<string>('');
   const [editNeededResources, setEditNeededResources] = useState<any[]>([]);
@@ -306,6 +390,8 @@ export const DashboardAlertsPage: React.FC = () => {
         // Eventy niekryzysowe nie mają rangi/krytyczności
         severity: mode === 'events' ? undefined : severity,
         locationName: locationName.trim() || undefined,
+        street: street.trim() || undefined,
+        houseNumber: houseNumber.trim() || undefined,
         county: county.trim() || undefined,
         voivodeship: voivodeship.trim() || undefined,
       };
@@ -344,6 +430,8 @@ export const DashboardAlertsPage: React.FC = () => {
         setContent('');
         setSeverity('wysoki');
         setLocationName('');
+        setStreet('');
+        setHouseNumber('');
         setCounty('');
         setVoivodeship('');
         setLat('');
@@ -446,6 +534,8 @@ export const DashboardAlertsPage: React.FC = () => {
     setEditCategory(alert.category);
     setEditSeverity(alert.severity || 'wysoki');
     setEditLocationName(alert.locationName || '');
+    setEditStreet(alert.street || '');
+    setEditHouseNumber(alert.houseNumber || '');
     setEditCounty(alert.county || '');
     setEditVoivodeship(alert.voivodeship || '');
     setEditLat(alert.lat !== undefined && alert.lat !== null ? alert.lat.toString() : '');
@@ -471,6 +561,8 @@ export const DashboardAlertsPage: React.FC = () => {
         // Eventy niekryzysowe nie mają rangi/krytyczności
         severity: mode === 'events' ? undefined : editSeverity,
         locationName: editLocationName.trim() || null,
+        street: editStreet.trim() || null,
+        houseNumber: editHouseNumber.trim() || null,
         county: editCounty.trim() || null,
         voivodeship: editVoivodeship.trim() || null,
         lat: editLat ? parseFloat(editLat) : null,
@@ -816,6 +908,14 @@ export const DashboardAlertsPage: React.FC = () => {
     return true;
   };
 
+  // Sprzątanie odroczonych wyszukiwań adresu przy odmontowaniu strony
+  useEffect(() => {
+    return () => {
+      if (addressGeocodeTimer.current) clearTimeout(addressGeocodeTimer.current);
+      if (editAddressGeocodeTimer.current) clearTimeout(editAddressGeocodeTimer.current);
+    };
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
@@ -1068,6 +1168,47 @@ export const DashboardAlertsPage: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    Ulica
+                  </label>
+                  <input
+                    type="text"
+                    value={street}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setStreet(v);
+                      triggerAddressGeocode(v, houseNumber);
+                    }}
+                    placeholder="np. ul. Kwiatowa (wpisz, aby mapa sama namierzyła adres)"
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    Numer domu
+                  </label>
+                  <input
+                    type="text"
+                    value={houseNumber}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setHouseNumber(v);
+                      triggerAddressGeocode(street, v);
+                    }}
+                    placeholder="np. 12A"
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                {isGeocodingAddress && (
+                  <div className="sm:col-span-3 text-[11px] text-indigo-600 flex items-center gap-1.5">
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
+                    <span>Lokalizowanie adresu na mapie...</span>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 mb-1">
@@ -1116,6 +1257,8 @@ export const DashboardAlertsPage: React.FC = () => {
                       if (details.locationName) setLocationName(details.locationName);
                       if (details.county) setCounty(details.county);
                       if (details.voivodeship) setVoivodeship(details.voivodeship);
+                      if (details.street) setStreet(details.street);
+                      if (details.houseNumber) setHouseNumber(details.houseNumber);
                     }
                   }}
                 />
@@ -1522,6 +1665,13 @@ export const DashboardAlertsPage: React.FC = () => {
                       </button>
                     </div>
 
+                    {formatStreetLine(alert) && (
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                        <span>{formatStreetLine(alert)}</span>
+                      </p>
+                    )}
+
                     <div className="space-y-1.5">
                       {alert.title && (
                         <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug tracking-tight">
@@ -1888,6 +2038,7 @@ export const DashboardAlertsPage: React.FC = () => {
                         <MapPin className="h-3.5 w-3.5 text-red-500" />
                         <span>
                           <strong>{alert.locationName || alert.municipality?.name || 'Gmina'}</strong>
+                          {formatStreetLine(alert) && `, ${formatStreetLine(alert)}`}
                           {alert.voivodeship && ` (woj. ${alert.voivodeship})`}
                         </span>
                       </span>
@@ -2119,6 +2270,47 @@ export const DashboardAlertsPage: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                    Ulica
+                  </label>
+                  <input
+                    type="text"
+                    value={editStreet}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setEditStreet(v);
+                      triggerEditAddressGeocode(v, editHouseNumber);
+                    }}
+                    placeholder="np. Kwiatowa"
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-1.5 px-2.5 text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 mb-1">
+                    Numer domu
+                  </label>
+                  <input
+                    type="text"
+                    value={editHouseNumber}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setEditHouseNumber(v);
+                      triggerEditAddressGeocode(editStreet, v);
+                    }}
+                    placeholder="np. 12A"
+                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-1.5 px-2.5 text-xs text-slate-900"
+                  />
+                </div>
+                {isEditGeocodingAddress && (
+                  <div className="col-span-3 text-[11px] text-indigo-600 flex items-center gap-1.5">
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent"></div>
+                    <span>Lokalizowanie adresu na mapie...</span>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5 flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-indigo-600" />
@@ -2135,6 +2327,8 @@ export const DashboardAlertsPage: React.FC = () => {
                       if (details.locationName) setEditLocationName(details.locationName);
                       if (details.county) setEditCounty(details.county);
                       if (details.voivodeship) setEditVoivodeship(details.voivodeship);
+                      if (details.street) setEditStreet(details.street);
+                      if (details.houseNumber) setEditHouseNumber(details.houseNumber);
                     }
                   }}
                 />

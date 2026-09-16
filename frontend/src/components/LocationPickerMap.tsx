@@ -8,6 +8,8 @@ export interface LocationDetails {
   locationName: string;
   county?: string;
   voivodeship?: string;
+  street?: string;
+  houseNumber?: string;
 }
 
 interface LocationPickerMapProps {
@@ -45,7 +47,9 @@ export const fetchReverseGeocode = async (
 ): Promise<LocationDetails> => {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
+      // zoom=18 (poziom budynku) jest wymagany, by Nominatim zwrócił ulicę i numer domu w addr.road/addr.house_number —
+      // przy zoom=14 (poziom miasta) te pola są zwykle puste, mimo że addressdetails=1 wciąż zwraca resztę hierarchii
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
       {
         headers: {
           'Accept-Language': 'pl,en',
@@ -70,16 +74,76 @@ export const fetchReverseGeocode = async (
       voivodeship = voivodeship.replace(/^województwo\s+/i, '');
     }
 
+    // Gdy kliknięty punkt leży dokładnie na drodze, Nominatim zwraca jej nazwę w polu "name" zamiast w addr.road/addr.pedestrian
+    const clickedOnRoadName =
+      data.addresstype === 'road' || data.class === 'highway' ? data.name || '' : '';
+
     return {
       locationName: placeName,
       county: addr.county || '',
       voivodeship: voivodeship,
+      street: addr.road || addr.pedestrian || addr.footway || clickedOnRoadName || '',
+      houseNumber: addr.house_number || '',
     };
   } catch (err) {
     console.warn('Reverse geocoding error:', err);
     return {
       locationName: 'Wybrany punkt na mapie',
     };
+  }
+};
+
+export interface ForwardGeocodeResult {
+  lat: number;
+  lng: number;
+  details: LocationDetails;
+}
+
+// Funkcja pomocnicza do wyszukiwania współrzędnych na podstawie wpisanego adresu (Forward Geocoding, Nominatim OSM)
+export const fetchForwardGeocode = async (
+  query: string
+): Promise<ForwardGeocodeResult | null> => {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        trimmed
+      )}&addressdetails=1&limit=1&countrycodes=pl`,
+      {
+        headers: {
+          'Accept-Language': 'pl,en',
+        },
+      }
+    );
+    if (!res.ok) throw new Error('Błąd odpowiedzi API geolokalizacji');
+    const results = await res.json();
+    if (!Array.isArray(results) || results.length === 0) return null;
+
+    const best = results[0];
+    const addr = best.address || {};
+
+    let voivodeship = addr.state || '';
+    if (voivodeship.toLowerCase().startsWith('województwo ')) {
+      voivodeship = voivodeship.replace(/^województwo\s+/i, '');
+    }
+
+    return {
+      lat: Number(parseFloat(best.lat).toFixed(6)),
+      lng: Number(parseFloat(best.lon).toFixed(6)),
+      details: {
+        locationName:
+          addr.city || addr.town || addr.village || addr.municipality || addr.suburb || addr.county || '',
+        county: addr.county || '',
+        voivodeship,
+        street: addr.road || addr.pedestrian || addr.footway || '',
+        houseNumber: addr.house_number || '',
+      },
+    };
+  } catch (err) {
+    console.warn('Forward geocoding error:', err);
+    return null;
   }
 };
 
@@ -125,10 +189,13 @@ export const LocationPickerMap: React.FC<LocationPickerMapProps> = ({
     setIsResolving(true);
     try {
       const details = await fetchReverseGeocode(newLat, newLng);
+      const streetPart = details.street
+        ? `${details.street}${details.houseNumber ? ` ${details.houseNumber}` : ''}, `
+        : '';
       setResolvedName(
         details.voivodeship
-          ? `${details.locationName} (woj. ${details.voivodeship})`
-          : details.locationName
+          ? `${streetPart}${details.locationName} (woj. ${details.voivodeship})`
+          : `${streetPart}${details.locationName}`
       );
       onChange(newLat, newLng, details);
     } catch (err) {
@@ -203,7 +270,7 @@ export const LocationPickerMap: React.FC<LocationPickerMapProps> = ({
           {isResolving ? (
             <>
               <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-400 shrink-0" />
-              <span>Wykrywanie miejscowości i województwa z mapy...</span>
+              <span>Wykrywanie ulicy, numeru domu i miejscowości z mapy...</span>
             </>
           ) : (
             <>

@@ -174,6 +174,8 @@ class MockStorageService {
       authorId: currentUser?.id || 'usr-admin',
       municipalityId: muniId,
       locationName: data.locationName || (muni ? muni.name : 'Nowa Dęba'),
+      street: data.street || undefined,
+      houseNumber: data.houseNumber || undefined,
       county: data.county || 'powiat tarnobrzeski',
       voivodeship: data.voivodeship || 'podkarpackie',
       lat: data.lat || 50.4261,

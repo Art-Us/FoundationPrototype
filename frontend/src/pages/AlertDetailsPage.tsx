@@ -7,6 +7,7 @@ import {
   AlertMapItem,
   NeededResourceItem,
   getSeverityBadgeInfo,
+  formatStreetLine,
 } from '../components/AlertsMap';
 import {
   ArrowLeft,
@@ -744,6 +745,9 @@ export const AlertDetailsPage: React.FC = () => {
                   {alert.locationName ? (
                     <>
                       <strong>{alert.locationName}</strong>
+                      {formatStreetLine(alert) && (
+                        <span className="text-slate-500 ml-1">, {formatStreetLine(alert)}</span>
+                      )}
                       {alert.county && <span className="text-slate-500 ml-1">({alert.county})</span>}
                       {alert.voivodeship && (
                         <span className="text-slate-400 ml-1">woj. {alert.voivodeship}</span>
