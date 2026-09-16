@@ -971,34 +971,6 @@ export const DashboardAlertsPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Przełącznik trybu: Alerty Kryzysowe vs Eventy — osobne podstrony, dane nigdy się nie mieszają */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setMode('crisis')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${mode === 'crisis'
-                  ? 'bg-white text-red-700 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-                }`}
-              title="Pokaż alerty kryzysowe"
-            >
-              <Radio className="h-3.5 w-3.5 text-red-500" />
-              <span>Alerty Kryzysowe</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('events')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${mode === 'events'
-                  ? 'bg-white text-fuchsia-700 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-                }`}
-              title="Pokaż eventy i wydarzenia niekryzysowe"
-            >
-              <PartyPopper className="h-3.5 w-3.5 text-fuchsia-500" />
-              <span>Eventy</span>
-            </button>
-          </div>
-
           <button
             onClick={() => setShowMap(!showMap)}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs cursor-pointer ${showMap
@@ -1010,6 +982,34 @@ export const DashboardAlertsPage: React.FC = () => {
             <span>{showMap ? 'Ukryj Mapę' : 'Pokaż Mapę'}</span>
           </button>
         </div>
+      </div>
+
+      {/* Przełącznik trybu: Alerty Kryzysowe vs Eventy — na szerokość mapy, dla lepszej widoczności, ale w stonowanej stylistyce */}
+      <div className="grid grid-cols-2 gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200/80">
+        <button
+          type="button"
+          onClick={() => setMode('crisis')}
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${mode === 'crisis'
+              ? 'bg-red-50 text-red-700 shadow-xs border border-red-100'
+              : 'text-slate-500 hover:text-slate-700 border border-transparent'
+            }`}
+          title="Pokaż alerty kryzysowe"
+        >
+          <Radio className="h-4 w-4 text-red-400" />
+          <span>Alerty Kryzysowe</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('events')}
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${mode === 'events'
+              ? 'bg-fuchsia-50 text-fuchsia-700 shadow-xs border border-fuchsia-100'
+              : 'text-slate-500 hover:text-slate-700 border border-transparent'
+            }`}
+          title="Pokaż eventy i wydarzenia niekryzysowe"
+        >
+          <PartyPopper className="h-4 w-4 text-fuchsia-400" />
+          <span>Eventy</span>
+        </button>
       </div>
 
       {/* Interaktywna Mapa Leaflet */}
