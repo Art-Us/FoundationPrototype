@@ -42,7 +42,6 @@ import {
   Trash2,
   PackageCheck,
   MessageSquare,
-  Globe,
   PartyPopper,
 } from 'lucide-react';
 
@@ -80,11 +79,6 @@ export const SEVERITY_OPTIONS: {
     { value: 'średni', label: '🟡 Średni (Żółty)', dotClass: 'bg-amber-500', textClass: 'text-amber-700' },
     { value: 'niski', label: '🟢 Niski (Zielony)', dotClass: 'bg-emerald-500', textClass: 'text-emerald-700' },
   ];
-
-// Dla eventów niekryzysowych nie istnieje priorytet "krytyczny" — najwyższy poziom to "wysoki"
-export const EVENT_SEVERITY_OPTIONS = SEVERITY_OPTIONS.filter(
-  (opt) => opt.value !== 'krytyczny'
-);
 
 export interface NeededResourceDraft {
   id: string;
@@ -126,7 +120,6 @@ export const DashboardAlertsPage: React.FC = () => {
     setSearchParams(params);
   };
   const categoryOptions = mode === 'events' ? EVENT_CATEGORY_OPTIONS : CATEGORY_OPTIONS;
-  const severityOptions = mode === 'events' ? EVENT_SEVERITY_OPTIONS : SEVERITY_OPTIONS;
 
   const [alerts, setAlerts] = useState<AlertMapItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -209,6 +202,14 @@ export const DashboardAlertsPage: React.FC = () => {
   const [archiveOrgFilter, setArchiveOrgFilter] = useState<string>('all');
   const [archiveSort, setArchiveSort] = useState<AlertSortOption>('date-desc');
 
+  // Eventy nie mają sortowania po krytyczności (nie istnieje dla nich priorytet "krytyczny") — po przełączeniu na tryb eventów cofamy takie sortowanie do domyślnego
+  useEffect(() => {
+    if (mode === 'events') {
+      setActiveSort((prev) => (prev === 'severity-desc' || prev === 'severity-asc' ? 'date-desc' : prev));
+      setArchiveSort((prev) => (prev === 'severity-desc' || prev === 'severity-asc' ? 'date-desc' : prev));
+    }
+  }, [mode]);
+
   // Modal historii cyklu życia
   const [selectedHistoryAlert, setSelectedHistoryAlert] = useState<AlertMapItem | null>(null);
 
@@ -254,8 +255,6 @@ export const DashboardAlertsPage: React.FC = () => {
   };
 
   // System powiadomień Toast
-  const [scope, setScope] = useState<'all' | 'my_municipality'>('all');
-
   const [toast, setToast] = useState<{
     id: number;
     type: 'success' | 'error';
@@ -273,7 +272,7 @@ export const DashboardAlertsPage: React.FC = () => {
   const fetchAlerts = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get(`/alerts/my-municipality?scope=${scope}`);
+      const res = await api.get('/alerts/my-municipality');
       if (res.data.success && Array.isArray(res.data.data)) {
         setAlerts(res.data.data);
       }
@@ -290,7 +289,7 @@ export const DashboardAlertsPage: React.FC = () => {
 
   useEffect(() => {
     fetchAlerts();
-  }, [scope]);
+  }, []);
 
   // 1. Obsługa dodawania nowego alertu
   const handleCreateAlert = async (e: React.FormEvent) => {
@@ -304,7 +303,8 @@ export const DashboardAlertsPage: React.FC = () => {
         content: content.trim(),
         category,
         eventType: mode === 'events' ? 'event' : 'crisis',
-        severity,
+        // Eventy niekryzysowe nie mają rangi/krytyczności
+        severity: mode === 'events' ? undefined : severity,
         locationName: locationName.trim() || undefined,
         county: county.trim() || undefined,
         voivodeship: voivodeship.trim() || undefined,
@@ -468,7 +468,8 @@ export const DashboardAlertsPage: React.FC = () => {
         title: editTitle.trim() || null,
         content: editContent.trim(),
         category: editCategory,
-        severity: editSeverity,
+        // Eventy niekryzysowe nie mają rangi/krytyczności
+        severity: mode === 'events' ? undefined : editSeverity,
         locationName: editLocationName.trim() || null,
         county: editCounty.trim() || null,
         voivodeship: editVoivodeship.trim() || null,
@@ -898,34 +899,6 @@ export const DashboardAlertsPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Przełącznik Zakresu Danych: Cały Kraj vs Moja Gmina */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setScope('all')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${scope === 'all'
-                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-                }`}
-              title="Wyświetlaj komunikaty ze wszystkich gmin w Polsce"
-            >
-              <Globe className="h-3.5 w-3.5 text-indigo-600" />
-              <span>Cały Kraj (Wszystkie gminy)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setScope('my_municipality')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${scope === 'my_municipality'
-                  ? 'bg-white text-indigo-700 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-                }`}
-              title="Filtruj wyłącznie do komunikatów Twojej jednostki samorządowej"
-            >
-              <Building className="h-3.5 w-3.5 text-slate-500" />
-              <span>Moja Gmina</span>
-            </button>
-          </div>
-
           <button
             onClick={() => setShowMap(!showMap)}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition shadow-xs cursor-pointer ${showMap
@@ -989,7 +962,7 @@ export const DashboardAlertsPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Lewa strona: Kategoria, Krytyczność, Treść i Wykryta Lokalizacja */}
             <div className="lg:col-span-7 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className={mode === 'events' ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-3'}>
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                     Kategoria zdarzenia
@@ -1007,22 +980,25 @@ export const DashboardAlertsPage: React.FC = () => {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                    {mode === 'events' ? 'Ranga eventu' : 'Krytyczność zdarzenia (Alarm)'}
-                  </label>
-                  <select
-                    value={severity}
-                    onChange={(e) => setSeverity(e.target.value as any)}
-                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 text-xs sm:text-sm font-bold focus:bg-white focus:border-red-500 focus:outline-none transition cursor-pointer"
-                  >
-                    {severityOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Eventy niekryzysowe nie mają rangi/krytyczności — pole dotyczy wyłącznie alertów kryzysowych */}
+                {mode !== 'events' && (
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                      Krytyczność zdarzenia (Alarm)
+                    </label>
+                    <select
+                      value={severity}
+                      onChange={(e) => setSeverity(e.target.value as any)}
+                      className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 text-xs sm:text-sm font-bold focus:bg-white focus:border-red-500 focus:outline-none transition cursor-pointer"
+                    >
+                      {SEVERITY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1453,8 +1429,12 @@ export const DashboardAlertsPage: React.FC = () => {
                 >
                   <option value="date-desc">Data: Od najnowszych</option>
                   <option value="date-asc">Data: Od najstarszych</option>
-                  <option value="severity-desc">🚨 Krytyczność zdarzenia (najwyższa)</option>
-                  <option value="severity-asc">🟢 Krytyczność zdarzenia (najniższa)</option>
+                  {mode !== 'events' && (
+                    <>
+                      <option value="severity-desc">🚨 Krytyczność zdarzenia (najwyższa)</option>
+                      <option value="severity-asc">🟢 Krytyczność zdarzenia (najniższa)</option>
+                    </>
+                  )}
                   <option value="demands-critical">📦 Posiadanie krytycznych żądań</option>
                   <option value="name-asc">Lokalizacja: A - Z</option>
                   <option value="name-desc">Lokalizacja: Z - A</option>
@@ -1501,13 +1481,15 @@ export const DashboardAlertsPage: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {/* Badge Krytyczności */}
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
-                        >
-                          <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
-                          <span>{severityInfo.label}</span>
-                        </span>
+                        {/* Badge Krytyczności — eventy niekryzysowe nie mają rangi/priorytetu */}
+                        {alert.eventType !== 'event' && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                          >
+                            <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                            <span>{severityInfo.label}</span>
+                          </span>
+                        )}
 
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider">
                           <AlertTriangle className="h-3 w-3 text-slate-500" />
@@ -1831,8 +1813,12 @@ export const DashboardAlertsPage: React.FC = () => {
                 >
                   <option value="date-desc">Data: Od najnowszych</option>
                   <option value="date-asc">Data: Od najstarszych</option>
-                  <option value="severity-desc">🚨 Krytyczność zdarzenia (najwyższa)</option>
-                  <option value="severity-asc">🟢 Krytyczność zdarzenia (najniższa)</option>
+                  {mode !== 'events' && (
+                    <>
+                      <option value="severity-desc">🚨 Krytyczność zdarzenia (najwyższa)</option>
+                      <option value="severity-asc">🟢 Krytyczność zdarzenia (najniższa)</option>
+                    </>
+                  )}
                   <option value="demands-critical">📦 Posiadanie krytycznych żądań</option>
                   <option value="name-asc">Lokalizacja: A-Z</option>
                   <option value="name-desc">Lokalizacja: Z-A</option>
@@ -1866,12 +1852,15 @@ export const DashboardAlertsPage: React.FC = () => {
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
-                        >
-                          <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
-                          <span>{severityInfo.label}</span>
-                        </span>
+                        {/* Badge Krytyczności — eventy niekryzysowe nie mają rangi/priorytetu */}
+                        {alert.eventType !== 'event' && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                          >
+                            <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                            <span>{severityInfo.label}</span>
+                          </span>
+                        )}
 
                         <span className="rounded-xl bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700 font-bold uppercase tracking-wider">
                           {alert.category}
@@ -2026,7 +2015,7 @@ export const DashboardAlertsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className={mode === 'events' ? '' : 'grid grid-cols-1 sm:grid-cols-2 gap-3'}>
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                     Kategoria
@@ -2044,22 +2033,25 @@ export const DashboardAlertsPage: React.FC = () => {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                    {mode === 'events' ? 'Ranga eventu' : 'Krytyczność zdarzenia'}
-                  </label>
-                  <select
-                    value={editSeverity}
-                    onChange={(e) => setEditSeverity(e.target.value as any)}
-                    className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-slate-900 text-xs font-bold focus:bg-white focus:border-red-500 focus:outline-none cursor-pointer"
-                  >
-                    {severityOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Eventy niekryzysowe nie mają rangi/krytyczności */}
+                {mode !== 'events' && (
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
+                      Krytyczność zdarzenia
+                    </label>
+                    <select
+                      value={editSeverity}
+                      onChange={(e) => setEditSeverity(e.target.value as any)}
+                      className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-slate-900 text-xs font-bold focus:bg-white focus:border-red-500 focus:outline-none cursor-pointer"
+                    >
+                      {SEVERITY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div>

@@ -716,18 +716,19 @@ export const AlertDetailsPage: React.FC = () => {
           <section className="rounded-3xl bg-white p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div className="flex flex-wrap items-center gap-1.5">
-                {/* Badge Krytyczności */}
-                {(() => {
-                  const severityInfo = getSeverityBadgeInfo(alert.severity);
-                  return (
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
-                    >
-                      <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
-                      <span>{severityInfo.label}</span>
-                    </span>
-                  );
-                })()}
+                {/* Badge Krytyczności — eventy niekryzysowe nie mają rangi/priorytetu */}
+                {alert.eventType !== 'event' &&
+                  (() => {
+                    const severityInfo = getSeverityBadgeInfo(alert.severity);
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold border uppercase tracking-wider ${severityInfo.badgeClass}`}
+                      >
+                        <span className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}></span>
+                        <span>{severityInfo.label}</span>
+                      </span>
+                    );
+                  })()}
 
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border tracking-wide uppercase ${categoryBadge.bg}`}

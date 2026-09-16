@@ -2,7 +2,9 @@ import { AlertMapItem, NeededResourceItem, AlertPostItem, PostChatMessage, Resou
 import { User, Organization, Municipality } from '../types';
 import { MockDatabase, MockResource, MockAuditLog, getInitialMockDatabase } from './mockData';
 
-const STORAGE_KEY = 'prototypq_standalone_db_v6';
+// v8: eventy niekryzysowe nie mają już pola severity/rangi — podbicie wersji wymusza odświeżenie
+// zapisanej w localStorage bazy u użytkowników, którzy mieli starą wersję eventów z rangą
+const STORAGE_KEY = 'prototypq_standalone_db_v8';
 
 class MockStorageService {
   private db: MockDatabase;
@@ -166,7 +168,8 @@ class MockStorageService {
       content: data.content || '',
       category: data.category || 'Ostrzeżenie hydrologiczne',
       eventType: data.eventType || 'crisis',
-      severity: data.severity || 'wysoki',
+      // Eventy niekryzysowe nie mają rangi/krytyczności
+      severity: data.eventType === 'event' ? undefined : data.severity || 'wysoki',
       isActive: true,
       authorId: currentUser?.id || 'usr-admin',
       municipalityId: muniId,

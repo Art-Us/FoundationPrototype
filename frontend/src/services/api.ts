@@ -34,9 +34,11 @@ export const api = {
     const currentUser = mockStorage.getCurrentUser();
 
     // 1. ALERTS
+    // Eventy niekryzysowe pojawiają się wyłącznie na dedykowanej podstronie (Dashboard: Alerty i Komunikaty → Eventy)
+    // — tablica publiczna i panel operacyjny pokazują tylko alerty kryzysowe, nigdy się z eventami nie mieszają.
     if (cleanUrl === '/alerts/public') {
       const all = mockStorage.getAlerts();
-      const active = all.filter((a) => a.isActive);
+      const active = all.filter((a) => a.isActive && a.eventType !== 'event');
       return makeResponse({
         success: true,
         data: active,
@@ -46,7 +48,7 @@ export const api = {
 
     if (cleanUrl === '/alerts/operational') {
       const all = mockStorage.getAlerts();
-      const active = all.filter((a) => a.isActive);
+      const active = all.filter((a) => a.isActive && a.eventType !== 'event');
       return makeResponse({
         success: true,
         data: active,

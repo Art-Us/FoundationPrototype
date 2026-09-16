@@ -14,6 +14,7 @@ import {
   Boxes,
   FileText,
   ArrowRight,
+  PartyPopper,
 } from 'lucide-react';
 
 export type MapDisplayMode = 'category' | 'severity' | 'resource_urgency';
@@ -196,11 +197,8 @@ export const getHighestResourceUrgency = (
   return 'niski';
 };
 
-// Generator ikon HTML DivIcon dla Leaflet z dynamicznym trybem wizualizacji
-const createCrisisIcon = (alert: AlertMapItem, mode: MapDisplayMode) => {
-  let color = '#ef4444';
-  let pulseColor = 'rgba(239, 68, 68, 0.4)';
-  const iconSvg = `
+// Ikona ostrzegawcza (trójkąt) dla alertów kryzysowych
+const CRISIS_ICON_SVG = `
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
       <line x1="12" y1="9" x2="12" y2="13"/>
@@ -208,20 +206,68 @@ const createCrisisIcon = (alert: AlertMapItem, mode: MapDisplayMode) => {
     </svg>
   `;
 
+// Ikona (konfetti/PartyPopper) dla eventów niekryzysowych — wizualnie odróżnia je od alertów na mapie
+const EVENT_ICON_SVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5.8 11.3 2 22l10.7-3.79"/>
+      <path d="M4 3h.01"/>
+      <path d="M22 8h.01"/>
+      <path d="M15 2h.01"/>
+      <path d="M22 20h.01"/>
+      <path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12v0c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/>
+      <path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11v0c-.11.7-.72 1.22-1.43 1.22H17"/>
+      <path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98v0C9.52 4.9 9 5.52 9 6.23V7"/>
+    </svg>
+  `;
+
+// Paleta kolorów per-kategoria eventu niekryzysowego (mapowanie 1:1 z EVENT_CATEGORY_OPTIONS w DashboardAlertsPage.tsx)
+const EVENT_CATEGORY_COLORS: Record<string, { color: string; pulseColor: string }> = {
+  'Festiwal / Koncert': { color: '#d946ef', pulseColor: 'rgba(217, 70, 239, 0.4)' }, // Fuksja
+  'Piknik rodzinny': { color: '#84cc16', pulseColor: 'rgba(132, 204, 22, 0.4)' }, // Limonkowy
+  'Wydarzenie sportowe': { color: '#3b82f6', pulseColor: 'rgba(59, 130, 246, 0.4)' }, // Niebieski
+  'Targi i kiermasze': { color: '#f59e0b', pulseColor: 'rgba(245, 158, 11, 0.4)' }, // Bursztynowy
+  'Wystawa / Wernisaż': { color: '#8b5cf6', pulseColor: 'rgba(139, 92, 246, 0.4)' }, // Fioletowy
+  'Uroczystość / Dożynki': { color: '#f43f5e', pulseColor: 'rgba(244, 63, 94, 0.4)' }, // Różany
+  'Warsztaty edukacyjne': { color: '#14b8a6', pulseColor: 'rgba(20, 184, 166, 0.4)' }, // Turkusowy
+  'Spotkanie społecznościowe': { color: '#0ea5e9', pulseColor: 'rgba(14, 165, 233, 0.4)' }, // Błękitny
+  'Wydarzenie kulturalne / Teatr': { color: '#6366f1', pulseColor: 'rgba(99, 102, 241, 0.4)' }, // Indygo
+  'Jarmark świąteczny': { color: '#ec4899', pulseColor: 'rgba(236, 72, 153, 0.4)' }, // Różowy
+};
+const DEFAULT_EVENT_COLOR = { color: '#d946ef', pulseColor: 'rgba(217, 70, 239, 0.4)' };
+
+// Grupowanie kategorii alertów kryzysowych (słowa kluczowe) do kolorowania i legendy — jedno źródło prawdy dla obu
+type CrisisCategoryBucket = 'hydro' | 'drog' | 'pomoc' | 'other';
+const CRISIS_CATEGORY_BUCKET_COLORS: Record<CrisisCategoryBucket, { color: string; pulseColor: string; label: string }> = {
+  hydro: { color: '#06b6d4', pulseColor: 'rgba(6, 182, 212, 0.4)', label: 'Hydrologiczne' }, // Cyan
+  drog: { color: '#f59e0b', pulseColor: 'rgba(245, 158, 11, 0.4)', label: 'Drogowe / Mosty' }, // Amber
+  pomoc: { color: '#10b981', pulseColor: 'rgba(16, 185, 129, 0.4)', label: 'Pomoc Humanitarna' }, // Emerald
+  other: { color: '#ef4444', pulseColor: 'rgba(239, 68, 68, 0.4)', label: 'Inne / Pożary' }, // Red
+};
+const getCrisisCategoryBucket = (category?: string | null): CrisisCategoryBucket => {
+  const lower = (category || '').toLowerCase();
+  if (lower.includes('hydro') || lower.includes('powód') || lower.includes('woda')) return 'hydro';
+  if (lower.includes('drog') || lower.includes('most') || lower.includes('objazd')) return 'drog';
+  if (lower.includes('pomoc') || lower.includes('humanitar')) return 'pomoc';
+  return 'other';
+};
+
+// Generator ikon HTML DivIcon dla Leaflet z dynamicznym trybem wizualizacji
+const createCrisisIcon = (alert: AlertMapItem, mode: MapDisplayMode) => {
+  const isEvent = alert.eventType === 'event';
+  let color = isEvent ? '#d946ef' : '#ef4444';
+  let pulseColor = isEvent ? 'rgba(217, 70, 239, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+  const iconSvg = isEvent ? EVENT_ICON_SVG : CRISIS_ICON_SVG;
+
   if (mode === 'category') {
-    const lower = (alert.category || '').toLowerCase();
-    if (lower.includes('hydro') || lower.includes('powód') || lower.includes('woda')) {
-      color = '#06b6d4'; // Cyan
-      pulseColor = 'rgba(6, 182, 212, 0.4)';
-    } else if (lower.includes('drog') || lower.includes('most') || lower.includes('objazd')) {
-      color = '#f59e0b'; // Amber
-      pulseColor = 'rgba(245, 158, 11, 0.4)';
-    } else if (lower.includes('pomoc') || lower.includes('humanitar')) {
-      color = '#10b981'; // Emerald
-      pulseColor = 'rgba(16, 185, 129, 0.4)';
+    if (isEvent) {
+      // Każda kategoria eventu (festyn, targi, koncert itd.) ma własny, stały kolor — niezależny od rangi/krytyczności, której eventy nie mają
+      const eventColors = EVENT_CATEGORY_COLORS[alert.category] || DEFAULT_EVENT_COLOR;
+      color = eventColors.color;
+      pulseColor = eventColors.pulseColor;
     } else {
-      color = '#ef4444'; // Red
-      pulseColor = 'rgba(239, 68, 68, 0.4)';
+      const bucketColors = CRISIS_CATEGORY_BUCKET_COLORS[getCrisisCategoryBucket(alert.category)];
+      color = bucketColors.color;
+      pulseColor = bucketColors.pulseColor;
     }
   } else if (mode === 'severity') {
     const sev = alert.severity || 'wysoki';
@@ -394,7 +440,29 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
   onNavigateToCard,
 }) => {
   const navigate = useNavigate();
-  const initialMode = availableModes.includes(defaultMode) ? defaultMode : availableModes[0] || 'severity';
+
+  // Widoki alertów i eventów nigdy się nie mieszają na jednej mapie — jeśli są tu jakiekolwiek wpisy, wszystkie mają ten sam eventType
+  const isEventsView = alerts.length > 0 && alerts.every((a) => a.eventType === 'event');
+
+  // Legenda pokazuje tylko kategorie faktycznie obecne wśród wyświetlanych punktów na mapie
+  const presentEventCategories = useMemo(
+    () => new Set(alerts.filter((a) => a.eventType === 'event').map((a) => a.category)),
+    [alerts]
+  );
+  const presentCrisisBuckets = useMemo(
+    () => new Set(alerts.filter((a) => a.eventType !== 'event').map((a) => getCrisisCategoryBucket(a.category))),
+    [alerts]
+  );
+
+  // Eventy nie mają rangi/krytyczności — tryb "severity" jest dla nich całkowicie niedostępny
+  const effectiveAvailableModes = isEventsView
+    ? availableModes.filter((m) => m !== 'severity')
+    : availableModes;
+
+  const initialMode =
+    effectiveAvailableModes.includes(defaultMode) && defaultMode !== 'severity'
+      ? defaultMode
+      : effectiveAvailableModes[0] || 'category';
   const [internalMode, setInternalMode] = useState<MapDisplayMode>(initialMode);
   const activeMode = controlledMode !== undefined ? controlledMode : internalMode;
 
@@ -454,6 +522,13 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
     [alertMarkers]
   );
 
+  useEffect(() => {
+    if (isEventsView && activeMode === 'severity') {
+      handleModeChange(effectiveAvailableModes[0] || 'category');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEventsView, activeMode]);
+
   const formatDate = (dateStr: string) => {
     try {
       return new Date(dateStr).toLocaleString('pl-PL', {
@@ -471,9 +546,9 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
   return (
     <div className="relative w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-700/70 bg-slate-900">
       {/* Przełącznik trybów mapy (Górny panel nawigacyjny) */}
-      {availableModes.length > 1 && (
+      {effectiveAvailableModes.length > 1 && (
         <div className="absolute top-3 right-3 z-20 rounded-2xl bg-slate-900/90 p-1.5 shadow-2xl backdrop-blur-md border border-slate-700/80 text-xs pointer-events-auto flex items-center gap-1">
-          {availableModes.includes('category') && (
+          {effectiveAvailableModes.includes('category') && (
             <button
               type="button"
               onClick={() => handleModeChange('category')}
@@ -488,7 +563,8 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
             </button>
           )}
 
-          {availableModes.includes('severity') && (
+          {/* Eventy niekryzysowe nie mają rangi/krytyczności — ten tryb jest widoczny tylko dla alertów kryzysowych */}
+          {effectiveAvailableModes.includes('severity') && (
             <button
               type="button"
               onClick={() => handleModeChange('severity')}
@@ -503,7 +579,7 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
             </button>
           )}
 
-          {availableModes.includes('resource_urgency') && (
+          {effectiveAvailableModes.includes('resource_urgency') && (
             <button
               type="button"
               onClick={() => handleModeChange('resource_urgency')}
@@ -569,14 +645,17 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
                   {/* Nagłówek popupu z krytycznością i kategorią */}
                   <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-200 pb-2">
                     <div className="flex items-center gap-1.5">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${severityInfo.badgeClass}`}
-                      >
+                      {/* Eventy niekryzysowe nie mają rangi/krytyczności */}
+                      {alert.eventType !== 'event' && (
                         <span
-                          className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}
-                        ></span>
-                        <span>{severityInfo.label}</span>
-                      </span>
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${severityInfo.badgeClass}`}
+                        >
+                          <span
+                            className={`h-2 w-2 rounded-full ${severityInfo.dotClass}`}
+                          ></span>
+                          <span>{severityInfo.label}</span>
+                        </span>
+                      )}
 
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
                         {alert.category}
@@ -697,35 +776,46 @@ export const AlertsMap: React.FC<AlertsMapProps> = ({
       {/* Dynamiczna Nakładka Legendy Mapy */}
       <div className="absolute bottom-4 left-4 z-20 rounded-2xl bg-slate-900/90 p-3 shadow-2xl backdrop-blur-md border border-slate-700/80 text-xs text-slate-300 pointer-events-auto space-y-1.5 hidden sm:block max-w-xs">
         <div className="font-bold text-white flex items-center gap-1.5 pb-1 border-b border-slate-800">
-          <AlertTriangle className="h-3.5 w-3.5 text-brand-400" />
+          {isEventsView ? (
+            <PartyPopper className="h-3.5 w-3.5 text-fuchsia-400" />
+          ) : (
+            <AlertTriangle className="h-3.5 w-3.5 text-brand-400" />
+          )}
           <span>
-            {activeMode === 'category' && `Legenda: Kategorie (${alerts.length})`}
+            {activeMode === 'category' &&
+              (isEventsView ? `Legenda: Kategorie Eventów (${alerts.length})` : `Legenda: Kategorie (${alerts.length})`)}
             {activeMode === 'severity' && `Legenda: Krytyczność Zdarzenia (${alerts.length})`}
             {activeMode === 'resource_urgency' && `Legenda: Krytyczność Żądań (${alerts.length})`}
           </span>
         </div>
 
         {activeMode === 'category' && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-cyan-400"></span>
-              <span>Hydrologiczne</span>
+          isEventsView ? (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] max-h-40 overflow-y-auto pr-1">
+              {Object.entries(EVENT_CATEGORY_COLORS)
+                .filter(([categoryName]) => presentEventCategories.has(categoryName))
+                .map(([categoryName, { color }]) => (
+                  <div key={categoryName} className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }}></span>
+                    <span className="truncate">{categoryName}</span>
+                  </div>
+                ))}
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
-              <span>Drogowe / Mosty</span>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+              {(Object.entries(CRISIS_CATEGORY_BUCKET_COLORS) as [CrisisCategoryBucket, { color: string; label: string }][])
+                .filter(([bucket]) => presentCrisisBuckets.has(bucket))
+                .map(([bucket, { color, label }]) => (
+                  <div key={bucket} className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }}></span>
+                    <span>{label}</span>
+                  </div>
+                ))}
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
-              <span>Pomoc Humanitarna</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-400"></span>
-              <span>Inne / Pożary</span>
-            </div>
-          </div>
+          )
         )}
 
+        {/* Tryb "severity" jest niedostępny dla eventów (nie mają rangi/krytyczności) — ta sekcja dotyczy wyłącznie alertów kryzysowych */}
         {activeMode === 'severity' && (
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
             <div className="flex items-center gap-1.5">
