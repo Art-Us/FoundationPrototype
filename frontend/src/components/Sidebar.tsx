@@ -73,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
           {/* Lista nawigacyjna */}
           <div className="p-4 space-y-6 overflow-y-auto flex-1">
             {/* SEKCJA 1: Tablica Publiczna */}
-            <div className="space-y-1">
+            {/* <div className="space-y-1">
               <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Główne
               </div>
@@ -86,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
                 </div>
                 <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
               </NavLink>
-            </div>
+            </div> */}
 
             {/* SEKCJA 2: Panel Operacyjny (dla zalogowanych zweryfikowanych) */}
             {user && isVerified && (
@@ -95,19 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
                   Panel Operacyjny
                 </div>
 
-                <NavLink
-                  to="/dashboard/operational"
-                  onClick={onCloseMobile}
-                  className={navLinkClasses}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100 transition">
-                      <Layers className="h-4 w-4" />
-                    </div>
-                    <span>Dyspozytornia i Zasoby</span>
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </NavLink>
+                
 
                 <NavLink
                   to="/dashboard/alerts"
@@ -118,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-50 text-red-600 group-hover:bg-red-100 transition">
                       <BellRing className="h-4 w-4" />
                     </div>
-                    <span>Alerty i Komunikaty</span>
+                    <span>Alerty</span>
                   </div>
                   <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </NavLink>
@@ -133,6 +121,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
                       <Database className="h-4 w-4" />
                     </div>
                     <span>Matryca Zasobów</span>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </NavLink>
+
+                <NavLink
+                  to="/dashboard/operational"
+                  onClick={onCloseMobile}
+                  className={navLinkClasses}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100 transition">
+                      <Layers className="h-4 w-4" />
+                    </div>
+                    <span>Dyspozytornia i Zasoby</span>
                   </div>
                   <ChevronRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </NavLink>
