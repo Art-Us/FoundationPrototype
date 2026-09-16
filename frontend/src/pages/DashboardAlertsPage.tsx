@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -43,6 +43,7 @@ import {
   PackageCheck,
   MessageSquare,
   Globe,
+  PartyPopper,
 } from 'lucide-react';
 
 const CATEGORY_OPTIONS = [
@@ -52,6 +53,20 @@ const CATEGORY_OPTIONS = [
   'Zagrożenie pożarowe',
   'Awaria infrastruktury',
   'Informacja ogólne',
+];
+
+// Kategorie dla zdarzeń niekryzysowych (festyny, koncerty, targi itd.) — nigdy nie mieszają się z alertami kryzysowymi
+export const EVENT_CATEGORY_OPTIONS = [
+  'Festiwal / Koncert',
+  'Piknik rodzinny',
+  'Wydarzenie sportowe',
+  'Targi i kiermasze',
+  'Wystawa / Wernisaż',
+  'Uroczystość / Dożynki',
+  'Warsztaty edukacyjne',
+  'Spotkanie społecznościowe',
+  'Wydarzenie kulturalne / Teatr',
+  'Jarmark świąteczny',
 ];
 
 export const SEVERITY_OPTIONS: {
@@ -65,6 +80,11 @@ export const SEVERITY_OPTIONS: {
     { value: 'średni', label: '🟡 Średni (Żółty)', dotClass: 'bg-amber-500', textClass: 'text-amber-700' },
     { value: 'niski', label: '🟢 Niski (Zielony)', dotClass: 'bg-emerald-500', textClass: 'text-emerald-700' },
   ];
+
+// Dla eventów niekryzysowych nie istnieje priorytet "krytyczny" — najwyższy poziom to "wysoki"
+export const EVENT_SEVERITY_OPTIONS = SEVERITY_OPTIONS.filter(
+  (opt) => opt.value !== 'krytyczny'
+);
 
 export interface NeededResourceDraft {
   id: string;
@@ -93,6 +113,21 @@ export const DashboardAlertsPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Przełącznik trybu: alerty kryzysowe vs eventy (festyny, koncerty itd.) — całkowicie odrębne widoki, dane nigdy się nie mieszają
+  const [searchParams, setSearchParams] = useSearchParams();
+  const mode: 'crisis' | 'events' = searchParams.get('type') === 'events' ? 'events' : 'crisis';
+  const setMode = (next: 'crisis' | 'events') => {
+    const params = new URLSearchParams(searchParams);
+    if (next === 'events') {
+      params.set('type', 'events');
+    } else {
+      params.delete('type');
+    }
+    setSearchParams(params);
+  };
+  const categoryOptions = mode === 'events' ? EVENT_CATEGORY_OPTIONS : CATEGORY_OPTIONS;
+  const severityOptions = mode === 'events' ? EVENT_SEVERITY_OPTIONS : SEVERITY_OPTIONS;
+
   const [alerts, setAlerts] = useState<AlertMapItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -101,6 +136,12 @@ export const DashboardAlertsPage: React.FC = () => {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
   const [severity, setSeverity] = useState<'krytyczny' | 'wysoki' | 'średni' | 'niski'>('wysoki');
+
+  // Reset kategorii/krytyczności formularza przy zmianie trybu, aby nie wysłać wartości spoza dozwolonej listy (np. "krytyczny" dla eventu)
+  useEffect(() => {
+    setCategory(categoryOptions[0]);
+    setSeverity('wysoki');
+  }, [mode]);
   const [locationName, setLocationName] = useState('');
   const [county, setCounty] = useState('');
   const [voivodeship, setVoivodeship] = useState('');
@@ -262,6 +303,7 @@ export const DashboardAlertsPage: React.FC = () => {
         title: title.trim() || undefined,
         content: content.trim(),
         category,
+        eventType: mode === 'events' ? 'event' : 'crisis',
         severity,
         locationName: locationName.trim() || undefined,
         county: county.trim() || undefined,
@@ -458,10 +500,19 @@ export const DashboardAlertsPage: React.FC = () => {
     }
   };
 
+  // Alerty i eventy nigdy się nie mieszają — bieżący widok operuje wyłącznie na wpisach pasujących do aktywnego trybu
+  const alertsForMode = useMemo(
+    () =>
+      alerts.filter((a) =>
+        mode === 'events' ? a.eventType === 'event' : a.eventType !== 'event'
+      ),
+    [alerts, mode]
+  );
+
   // Unikalne organizacje do filtrów aktywnych
   const availableActiveOrgs = useMemo(() => {
     const map = new Map<string, string>();
-    alerts
+    alertsForMode
       .filter((a) => a.isActive)
       .forEach((a) => {
         if (a.author?.organization?.name) {
@@ -469,12 +520,12 @@ export const DashboardAlertsPage: React.FC = () => {
         }
       });
     return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'pl'));
-  }, [alerts]);
+  }, [alertsForMode]);
 
   // Unikalne organizacje do filtrów archiwum
   const availableArchiveOrgs = useMemo(() => {
     const map = new Map<string, string>();
-    alerts
+    alertsForMode
       .filter((a) => !a.isActive)
       .forEach((a) => {
         if (a.author?.organization?.name) {
@@ -482,11 +533,11 @@ export const DashboardAlertsPage: React.FC = () => {
         }
       });
     return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'pl'));
-  }, [alerts]);
+  }, [alertsForMode]);
 
   // Aktywne alerty z oddzielnym filtrowaniem, wyszukiwaniem i sortowaniem
   const activeAlerts = useMemo(() => {
-    const rawActive = alerts.filter((a) => a.isActive);
+    const rawActive = alertsForMode.filter((a) => a.isActive);
     const now = Date.now();
     const oneHour = 3600 * 1000;
     const oneDay = 24 * oneHour;
@@ -609,7 +660,7 @@ export const DashboardAlertsPage: React.FC = () => {
         return 0;
       });
   }, [
-    alerts,
+    alertsForMode,
     activeSearchQuery,
     activeTimeframe,
     activeCustomStartDate,
@@ -621,7 +672,7 @@ export const DashboardAlertsPage: React.FC = () => {
 
   // Zarchiwizowane alerty z filtrowaniem czasowym
   const archivedAlerts = useMemo(() => {
-    const rawArchived = alerts.filter((a) => !a.isActive);
+    const rawArchived = alertsForMode.filter((a) => !a.isActive);
     const now = Date.now();
     const oneHour = 3600 * 1000;
     const oneDay = 24 * oneHour;
@@ -744,7 +795,7 @@ export const DashboardAlertsPage: React.FC = () => {
         return 0;
       });
   }, [
-    alerts,
+    alertsForMode,
     archiveSearchQuery,
     archiveTimeframe,
     customStartDate,
@@ -801,18 +852,52 @@ export const DashboardAlertsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-indigo-600 font-semibold text-xs tracking-wider uppercase mb-1">
-            <Radio className="h-4 w-4 text-red-500 animate-pulse" />
+            {mode === 'events' ? (
+              <PartyPopper className="h-4 w-4 text-fuchsia-500" />
+            ) : (
+              <Radio className="h-4 w-4 text-red-500 animate-pulse" />
+            )}
             <span>Panel Operacyjny • Zarządzanie, Historia i Archiwum Zdarzeń</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Alerty i Ostrzeżenia Kryzysowe
+            {mode === 'events' ? 'Eventy i Wydarzenia Lokalne' : 'Alerty i Ostrzeżenia Kryzysowe'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Wskazuj punkty na mapie (z auto-wykrywaniem miejscowości), wznawiaj komunikaty, przeglądaj oś czasu i filtruj archiwum
+            {mode === 'events'
+              ? 'Festyny, koncerty, targi i inne wydarzenia niekryzysowe — całkowicie oddzielone od alertów kryzysowych'
+              : 'Wskazuj punkty na mapie (z auto-wykrywaniem miejscowości), wznawiaj komunikaty, przeglądaj oś czasu i filtruj archiwum'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Przełącznik trybu: Alerty Kryzysowe vs Eventy — osobne podstrony, dane nigdy się nie mieszają */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setMode('crisis')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${mode === 'crisis'
+                  ? 'bg-white text-red-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+                }`}
+              title="Pokaż alerty kryzysowe"
+            >
+              <Radio className="h-3.5 w-3.5 text-red-500" />
+              <span>Alerty Kryzysowe</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('events')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${mode === 'events'
+                  ? 'bg-white text-fuchsia-700 shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+                }`}
+              title="Pokaż eventy i wydarzenia niekryzysowe"
+            >
+              <PartyPopper className="h-3.5 w-3.5 text-fuchsia-500" />
+              <span>Eventy</span>
+            </button>
+          </div>
+
           {/* Przełącznik Zakresu Danych: Cały Kraj vs Moja Gmina */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
@@ -884,14 +969,16 @@ export const DashboardAlertsPage: React.FC = () => {
         </section>
       )}
 
-      {/* 1. Formularz dodawania alertu */}
+      {/* 1. Formularz dodawania alertu / eventu */}
       <div className="rounded-3xl bg-white p-6 sm:p-8 shadow-xs border border-slate-200/80">
         <div className="flex items-center gap-3 mb-6">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-            <BellRing className="h-5 w-5" />
+            {mode === 'events' ? <PartyPopper className="h-5 w-5" /> : <BellRing className="h-5 w-5" />}
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900">Opublikuj nowy komunikat kryzysowy</h2>
+            <h2 className="text-base font-bold text-slate-900">
+              {mode === 'events' ? 'Opublikuj nowy event' : 'Opublikuj nowy komunikat kryzysowy'}
+            </h2>
             <p className="text-xs text-slate-500">
               Kliknij punkt na mapie – nazwa miejscowości, powiat i województwo zostaną wykryte automatycznie!
             </p>
@@ -912,7 +999,7 @@ export const DashboardAlertsPage: React.FC = () => {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 text-xs sm:text-sm font-medium focus:bg-white focus:border-indigo-500 focus:outline-none transition"
                   >
-                    {CATEGORY_OPTIONS.map((opt) => (
+                    {categoryOptions.map((opt) => (
                       <option key={opt} value={opt}>
                         {opt}
                       </option>
@@ -922,14 +1009,14 @@ export const DashboardAlertsPage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                    Krytyczność zdarzenia (Alarm)
+                    {mode === 'events' ? 'Ranga eventu' : 'Krytyczność zdarzenia (Alarm)'}
                   </label>
                   <select
                     value={severity}
                     onChange={(e) => setSeverity(e.target.value as any)}
                     className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3.5 text-slate-900 text-xs sm:text-sm font-bold focus:bg-white focus:border-red-500 focus:outline-none transition cursor-pointer"
                   >
-                    {SEVERITY_OPTIONS.map((opt) => (
+                    {severityOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}
                       </option>
@@ -1219,7 +1306,7 @@ export const DashboardAlertsPage: React.FC = () => {
                 ) : (
                   <>
                     <Send className="h-4 w-4" />
-                    <span>Opublikuj alert na mapie</span>
+                    <span>{mode === 'events' ? 'Opublikuj event na mapie' : 'Opublikuj alert na mapie'}</span>
                   </>
                 )}
               </button>
@@ -1239,7 +1326,7 @@ export const DashboardAlertsPage: React.FC = () => {
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
             </span>
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              Aktywne Komunikaty ({activeAlerts.length})
+              {mode === 'events' ? 'Aktywne Eventy' : 'Aktywne Komunikaty'} ({activeAlerts.length})
             </h2>
           </div>
           <span className="text-xs text-red-700 font-semibold bg-red-50 px-3 py-1 rounded-full border border-red-200">
@@ -1331,7 +1418,7 @@ export const DashboardAlertsPage: React.FC = () => {
                 className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs text-slate-800 font-semibold focus:bg-white focus:border-red-500 focus:outline-none"
               >
                 <option value="all">Wszystkie typy</option>
-                {CATEGORY_OPTIONS.map((c) => (
+                {categoryOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1615,7 +1702,9 @@ export const DashboardAlertsPage: React.FC = () => {
           <div className="flex items-center gap-2.5 text-slate-500">
             <Archive className="h-5 w-5 text-slate-400" />
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              Archiwum Komunikatów i Raporty Historyczne ({archivedAlerts.length})
+              {mode === 'events'
+                ? `Archiwum Eventów (${archivedAlerts.length})`
+                : `Archiwum Komunikatów i Raporty Historyczne (${archivedAlerts.length})`}
             </h2>
           </div>
           <span className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
@@ -1707,7 +1796,7 @@ export const DashboardAlertsPage: React.FC = () => {
                 className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2.5 px-3 text-xs text-slate-800 font-semibold focus:bg-white focus:border-indigo-500 focus:outline-none"
               >
                 <option value="all">Wszystkie typy</option>
-                {CATEGORY_OPTIONS.map((c) => (
+                {categoryOptions.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1947,7 +2036,7 @@ export const DashboardAlertsPage: React.FC = () => {
                     onChange={(e) => setEditCategory(e.target.value)}
                     className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-slate-900 text-xs focus:bg-white focus:border-indigo-500 focus:outline-none"
                   >
-                    {CATEGORY_OPTIONS.map((opt) => (
+                    {categoryOptions.map((opt) => (
                       <option key={opt} value={opt}>
                         {opt}
                       </option>
@@ -1957,14 +2046,14 @@ export const DashboardAlertsPage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
-                    Krytyczność zdarzenia
+                    {mode === 'events' ? 'Ranga eventu' : 'Krytyczność zdarzenia'}
                   </label>
                   <select
                     value={editSeverity}
                     onChange={(e) => setEditSeverity(e.target.value as any)}
                     className="w-full rounded-xl bg-slate-50 border border-slate-200 py-2 px-3 text-slate-900 text-xs font-bold focus:bg-white focus:border-red-500 focus:outline-none cursor-pointer"
                   >
-                    {SEVERITY_OPTIONS.map((opt) => (
+                    {severityOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}
                       </option>

@@ -165,6 +165,7 @@ class MockStorageService {
       title: data.title || 'Nowy Alert Kryzysowy',
       content: data.content || '',
       category: data.category || 'Ostrzeżenie hydrologiczne',
+      eventType: data.eventType || 'crisis',
       severity: data.severity || 'wysoki',
       isActive: true,
       authorId: currentUser?.id || 'usr-admin',

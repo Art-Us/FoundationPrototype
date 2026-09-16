@@ -78,6 +78,8 @@ export interface AlertMapItem {
   title?: string | null;
   content: string;
   category: string;
+  /** Brak pola (undefined) jest traktowany jak 'crisis' — dane historyczne sprzed rozdzielenia typów. */
+  eventType?: 'crisis' | 'event';
   severity?: 'krytyczny' | 'wysoki' | 'średni' | 'niski';
   isActive: boolean;
   locationName?: string | null;
